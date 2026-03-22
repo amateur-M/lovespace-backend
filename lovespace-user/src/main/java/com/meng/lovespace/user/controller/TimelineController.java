@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import java.time.LocalDate;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -96,13 +97,17 @@ public class TimelineController {
             Authentication auth,
             @RequestParam("coupleId") @NotBlank(message = "coupleId is required") String coupleId,
             @RequestParam(value = "page", defaultValue = "1") @Min(1) long page,
-            @RequestParam(value = "pageSize", defaultValue = "10") @Min(1) @Max(100) long pageSize) {
+            @RequestParam(value = "pageSize", defaultValue = "10") @Min(1) @Max(100) long pageSize,
+            @RequestParam(value = "startDate", required = false) LocalDate startDate,
+            @RequestParam(value = "endDate", required = false) LocalDate endDate) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        return ApiResponse.ok(loveRecordService.pageRecords(p.userId(), coupleId, page, pageSize));
+        return ApiResponse.ok(
+                loveRecordService.pageRecords(p.userId(), coupleId, page, pageSize, startDate, endDate)
+        );
     }
 
     @GetMapping("/records/{id}")
-    public ApiResponse<LoveRecordResponse> getRecord(Authentication auth, @PathVariable String id) {
+    public ApiResponse<LoveRecordResponse> getRecord(Authentication auth, @PathVariable("id") String id) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         return ApiResponse.ok(loveRecordService.getDetail(p.userId(), id));
     }

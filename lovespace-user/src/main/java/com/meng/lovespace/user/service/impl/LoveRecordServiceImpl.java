@@ -61,10 +61,20 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
     }
 
     @Override
-    public LoveRecordPageResponse pageRecords(String userId, String coupleId, long page, long pageSize) {
+    public LoveRecordPageResponse pageRecords(
+            String userId, String coupleId, long page, long pageSize, LocalDate startDate, LocalDate endDate) {
         assertCoupleMember(userId, coupleId);
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new TimelineBusinessException(40054, "startDate must not be after endDate");
+        }
         Page<LoveRecord> p = new Page<>(Math.max(1, page), Math.max(1, Math.min(pageSize, 100)));
         LambdaQueryWrapper<LoveRecord> w = visibilityQuery(coupleId, userId);
+        if (startDate != null) {
+            w.ge(LoveRecord::getRecordDate, startDate);
+        }
+        if (endDate != null) {
+            w.le(LoveRecord::getRecordDate, endDate);
+        }
         w.orderByDesc(LoveRecord::getRecordDate).orderByDesc(LoveRecord::getCreatedAt);
         Page<LoveRecord> result = page(p, w);
         List<LoveRecordResponse> list = result.getRecords().stream().map(LoveRecordServiceImpl::toResponse).toList();

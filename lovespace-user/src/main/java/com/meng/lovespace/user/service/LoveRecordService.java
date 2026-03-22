@@ -6,6 +6,7 @@ import com.meng.lovespace.user.dto.LoveRecordPageResponse;
 import com.meng.lovespace.user.dto.LoveRecordResponse;
 import com.meng.lovespace.user.dto.LoveRecordUpdateRequest;
 import com.meng.lovespace.user.entity.LoveRecord;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -15,7 +16,11 @@ public interface LoveRecordService extends IService<LoveRecord> {
 
     LoveRecordResponse create(String userId, LoveRecordCreateRequest req);
 
-    LoveRecordPageResponse pageRecords(String userId, String coupleId, long page, long pageSize);
+    /**
+     * 分页查询记录；{@code startDate}/{@code endDate} 可选，按 {@code record_date} 闭区间筛选（可只传其一）。
+     */
+    LoveRecordPageResponse pageRecords(
+            String userId, String coupleId, long page, long pageSize, LocalDate startDate, LocalDate endDate);
 
     LoveRecordResponse getDetail(String userId, String id);
 
