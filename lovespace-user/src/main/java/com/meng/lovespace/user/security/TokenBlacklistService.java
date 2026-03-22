@@ -1,12 +1,14 @@
 package com.meng.lovespace.user.security;
 
 import java.time.Duration;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 /**
  * JWT 登出黑名单：以 jti 为键写入 Redis，TTL 与 token 剩余有效期对齐。
  */
+@Slf4j
 @Service
 public class TokenBlacklistService {
     private static final String PREFIX = "lovespace:jwt:blacklist:";
@@ -28,6 +30,7 @@ public class TokenBlacklistService {
         if (jti == null || jti.isBlank()) return;
         if (ttl.isNegative() || ttl.isZero()) return;
         redis.opsForValue().set(PREFIX + jti, "1", ttl);
+        log.debug("jwt blacklisted jtiPrefix={} ttlSeconds={}", jti.substring(0, Math.min(8, jti.length())), ttl.getSeconds());
     }
 
     /**

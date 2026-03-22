@@ -7,6 +7,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 健康检查接口，供负载均衡或运维探活使用。
+ *
+ * <p>刻意不在此打日志，避免探活请求刷屏；需要时可对 {@code /health} 单独调高访问日志级别。
  */
 @RestController
 @RequestMapping("/health")

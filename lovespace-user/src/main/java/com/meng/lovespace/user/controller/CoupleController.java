@@ -30,6 +30,7 @@ public class CoupleController {
 
     private final CoupleBindingService coupleBindingService;
 
+    /** @param coupleBindingService 情侣绑定领域服务 */
     public CoupleController(CoupleBindingService coupleBindingService) {
         this.coupleBindingService = coupleBindingService;
     }
@@ -65,8 +66,15 @@ public class CoupleController {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         return coupleBindingService
                 .getCoupleInfo(p.userId())
-                .map(ApiResponse::ok)
-                .orElseGet(() -> ApiResponse.error(40442, "no active couple binding"));
+                .map(info -> {
+                    log.debug("couple.info userId={} bindingId={}", p.userId(), info.bindingId());
+                    return ApiResponse.ok(info);
+                })
+                .orElseGet(
+                        () -> {
+                            log.debug("couple.info userId={} noActiveBinding", p.userId());
+                            return ApiResponse.error(40442, "no active couple binding");
+                        });
     }
 
     /** 更新恋爱开始日，并自动重算恋爱天数。 */

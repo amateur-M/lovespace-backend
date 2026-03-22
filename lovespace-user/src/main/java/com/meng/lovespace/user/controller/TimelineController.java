@@ -45,6 +45,11 @@ public class TimelineController {
     private final AvatarStorageService avatarStorageService;
     private final AvatarUploadProperties avatarUploadProperties;
 
+    /**
+     * @param loveRecordService 时间轴领域服务
+     * @param avatarStorageService 对象存储（时间轴图与头像共用策略）
+     * @param avatarUploadProperties 上传大小与扩展名校验（与头像一致）
+     */
     public TimelineController(
             LoveRecordService loveRecordService,
             AvatarStorageService avatarStorageService,
@@ -62,9 +67,15 @@ public class TimelineController {
             Authentication auth, @RequestPart("file") MultipartFile file) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         if (file == null || file.isEmpty()) {
+            log.warn("timeline.upload rejected userId={} reason=empty", p.userId());
             return ApiResponse.error(40010, "file is required");
         }
         if (file.getSize() > avatarUploadProperties.maxSizeBytes()) {
+            log.warn(
+                    "timeline.upload rejected userId={} reason=too_large size={} maxBytes={}",
+                    p.userId(),
+                    file.getSize(),
+                    avatarUploadProperties.maxSizeBytes());
             return ApiResponse.error(
                     40011,
                     "image too large, max "
@@ -77,6 +88,7 @@ public class TimelineController {
             allowed = java.util.List.of("jpg", "jpeg", "png", "webp");
         }
         if (!allowed.stream().map(String::toLowerCase).toList().contains(ext)) {
+            log.warn("timeline.upload rejected userId={} reason=bad_ext ext={} allowed={}", p.userId(), ext, allowed);
             return ApiResponse.error(40012, "invalid image type, allowed: " + String.join(",", allowed));
         }
         String url = avatarStorageService.uploadTimelineImage(p.userId(), file);
@@ -84,6 +96,12 @@ public class TimelineController {
         return ApiResponse.ok(url);
     }
 
+    /**
+     * 创建恋爱记录。
+     *
+     * @param auth 当前用户（作为作者）
+     * @param req 请求体
+     */
     @PostMapping("/records")
     public ApiResponse<LoveRecordResponse> createRecord(
             Authentication auth, @Valid @RequestBody LoveRecordCreateRequest req) {
@@ -92,6 +110,9 @@ public class TimelineController {
         return ApiResponse.ok(loveRecordService.create(p.userId(), req));
     }
 
+    /**
+     * 分页查询记录；可选 {@code startDate}/{@code endDate} 筛选 {@code record_date}。
+     */
     @GetMapping("/records")
     public ApiResponse<LoveRecordPageResponse> listRecords(
             Authentication auth,
@@ -101,28 +122,42 @@ public class TimelineController {
             @RequestParam(value = "startDate", required = false) LocalDate startDate,
             @RequestParam(value = "endDate", required = false) LocalDate endDate) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug(
+                "timeline.list userId={} coupleId={} page={} pageSize={} startDate={} endDate={}",
+                p.userId(),
+                coupleId,
+                page,
+                pageSize,
+                startDate,
+                endDate);
         return ApiResponse.ok(
                 loveRecordService.pageRecords(p.userId(), coupleId, page, pageSize, startDate, endDate)
         );
     }
 
+    /** 查询单条记录详情。 */
     @GetMapping("/records/{id}")
     public ApiResponse<LoveRecordResponse> getRecord(Authentication auth, @PathVariable("id") String id) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug("timeline.get userId={} recordId={}", p.userId(), id);
         return ApiResponse.ok(loveRecordService.getDetail(p.userId(), id));
     }
 
+    /** 更新记录（仅作者）。 */
     @PutMapping("/records/{id}")
     public ApiResponse<Void> updateRecord(
             Authentication auth, @PathVariable("id") String id, @RequestBody LoveRecordUpdateRequest req) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.info("timeline.update userId={} recordId={}", p.userId(), id);
         loveRecordService.update(p.userId(), id, req);
         return ApiResponse.ok();
     }
 
+    /** 删除记录（仅作者）。 */
     @DeleteMapping("/records/{id}")
     public ApiResponse<Void> deleteRecord(Authentication auth, @PathVariable("id") String id) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.info("timeline.delete userId={} recordId={}", p.userId(), id);
         loveRecordService.delete(p.userId(), id);
         return ApiResponse.ok();
     }
@@ -136,9 +171,11 @@ public class TimelineController {
             @RequestParam("coupleId") @NotBlank(message = "coupleId is required") String coupleId,
             @RequestParam(value = "limit", defaultValue = "10") @Min(1) @Max(30) int limit) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug("timeline.memories userId={} coupleId={} limit={}", p.userId(), coupleId, limit);
         return ApiResponse.ok(loveRecordService.memories(p.userId(), coupleId, limit));
     }
 
+    /** 从原始文件名解析小写扩展名（无点则空串）。 */
     private static String extensionOf(String filename) {
         if (filename == null || !filename.contains(".")) {
             return "";

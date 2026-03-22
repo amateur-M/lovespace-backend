@@ -9,7 +9,6 @@ import com.meng.lovespace.user.dto.UserResponse;
 import com.meng.lovespace.user.entity.User;
 import com.meng.lovespace.user.service.UserService;
 import jakarta.validation.Valid;
-import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -38,6 +37,7 @@ public class UserController {
      * @param userService 用户服务
      * @param passwordEncoder 密码加密器
      */
+    /** @param userService 用户持久化服务 @param passwordEncoder 注册时密码哈希 */
     public UserController(UserService userService, PasswordEncoder passwordEncoder) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
@@ -81,9 +81,13 @@ public class UserController {
      */
     @GetMapping("/{id}")
     public ApiResponse<UserResponse> getById(@PathVariable("id") String id) {
-        return Optional.ofNullable(userService.getById(id))
-                .map(u -> ApiResponse.ok(toResponse(u)))
-                .orElseGet(() -> ApiResponse.error(40400, "user not found"));
+        User u = userService.getById(id);
+        if (u == null) {
+            log.debug("users.getById notFound id={}", id);
+            return ApiResponse.error(40400, "user not found");
+        }
+        log.debug("users.getById id={} username={}", id, u.getUsername());
+        return ApiResponse.ok(toResponse(u));
     }
 
     /**
@@ -97,8 +101,10 @@ public class UserController {
     public ApiResponse<IPage<UserResponse>> page(
             @RequestParam(value = "page", defaultValue = "1") long page,
             @RequestParam(value = "size", defaultValue = "10") long size) {
+        log.debug("users.page page={} size={}", page, size);
         Page<User> p = userService.page(Page.of(page, size));
         IPage<UserResponse> resp = p.convert(this::toResponse);
+        log.debug("users.page total={} currentSize={}", resp.getTotal(), resp.getRecords().size());
         return ApiResponse.ok(resp);
     }
 
@@ -112,6 +118,9 @@ public class UserController {
     public ApiResponse<Void> delete(@PathVariable("id") String id) {
         log.info("users.delete id={}", id);
         boolean ok = userService.removeById(id);
+        if (!ok) {
+            log.debug("users.delete notFound id={}", id);
+        }
         return ok ? ApiResponse.ok() : ApiResponse.error(40400, "user not found");
     }
 

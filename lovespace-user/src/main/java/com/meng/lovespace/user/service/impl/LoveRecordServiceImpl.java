@@ -21,9 +21,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * {@link LoveRecordService} 实现：情侣成员校验、可见性 SQL 条件、心情/日期等业务规则。
+ */
+@Slf4j
 @Service
 public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRecord> implements LoveRecordService {
 
@@ -31,6 +36,7 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
 
     private final CoupleBindingService coupleBindingService;
 
+    /** @param coupleBindingService 用于校验 {@code coupleId} 是否对当前用户有效 */
     public LoveRecordServiceImpl(CoupleBindingService coupleBindingService) {
         this.coupleBindingService = coupleBindingService;
     }
@@ -57,6 +63,13 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
         row.setTagsJson(req.tagsJson());
         row.setImagesJson(req.imagesJson());
         save(row);
+        log.info(
+                "loveRecord.created id={} coupleId={} authorId={} recordDate={} mood={}",
+                row.getId(),
+                row.getCoupleId(),
+                row.getAuthorId(),
+                row.getRecordDate(),
+                row.getMood());
         return LoveRecordServiceImpl.toResponse(row);
     }
 
@@ -78,6 +91,16 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
         w.orderByDesc(LoveRecord::getRecordDate).orderByDesc(LoveRecord::getCreatedAt);
         Page<LoveRecord> result = page(p, w);
         List<LoveRecordResponse> list = result.getRecords().stream().map(LoveRecordServiceImpl::toResponse).toList();
+        log.debug(
+                "loveRecord.page userId={} coupleId={} page={} pageSize={} startDate={} endDate={} total={} returned={}",
+                userId,
+                coupleId,
+                page,
+                pageSize,
+                startDate,
+                endDate,
+                result.getTotal(),
+                list.size());
         return new LoveRecordPageResponse(result.getTotal(), result.getCurrent(), result.getSize(), list);
     }
 
@@ -91,6 +114,7 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
         if (!canView(row, userId)) {
             throw new TimelineBusinessException(40352, "forbidden to view this record");
         }
+        log.debug("loveRecord.detail id={} viewerId={} coupleId={}", id, userId, row.getCoupleId());
         return LoveRecordServiceImpl.toResponse(row);
     }
 
@@ -130,7 +154,11 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
         if (req.tagsJson() != null) {
             row.setTagsJson(req.tagsJson());
         }
+        if (req.imagesJson() != null) {
+            row.setImagesJson(req.imagesJson());
+        }
         updateById(row);
+        log.info("loveRecord.updated id={} editorId={} coupleId={}", id, userId, row.getCoupleId());
     }
 
     @Override
@@ -145,6 +173,7 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
             throw new TimelineBusinessException(40354, "only author can delete");
         }
         removeById(id);
+        log.info("loveRecord.deleted id={} authorId={} coupleId={}", id, userId, row.getCoupleId());
     }
 
     @Override
@@ -188,15 +217,18 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
             }
         }
 
+        log.debug("loveRecord.memories userId={} coupleId={} limit={} returned={}", userId, coupleId, cap, out.size());
         return out;
     }
 
+    /** 校验当前用户是否为该情侣绑定成员且状态为交往/冻结。 */
     private void assertCoupleMember(String userId, String coupleId) {
         coupleBindingService
                 .findActiveOrFrozenMembership(userId, coupleId)
                 .orElseThrow(() -> new TimelineBusinessException(40351, "forbidden or invalid couple"));
     }
 
+    /** 构造「情侣可见 + 本人可见的仅自己记录」查询条件。 */
     private static LambdaQueryWrapper<LoveRecord> visibilityQuery(String coupleId, String viewerId) {
         LambdaQueryWrapper<LoveRecord> w = new LambdaQueryWrapper<>();
         w.eq(LoveRecord::getCoupleId, coupleId)
@@ -210,6 +242,7 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
         return w;
     }
 
+    /** 详情接口在已是情侣成员前提下，再判断单条记录的可见性。 */
     private static boolean canView(LoveRecord row, String viewerId) {
         if (row.getVisibility() == null) {
             return false;
@@ -221,18 +254,21 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
                 && Objects.equals(row.getAuthorId(), viewerId);
     }
 
+    /** 校验心情标签是否在 {@link LoveMood#ALLOWED} 内。 */
     private static void validateMood(String mood) {
         if (!LoveMood.isAllowed(mood)) {
             throw new TimelineBusinessException(40052, "invalid mood, allowed: " + LoveMood.ALLOWED);
         }
     }
 
+    /** 校验可见性取值为 {@link LoveRecordVisibility} 定义。 */
     private static void validateVisibility(int v) {
         if (v != LoveRecordVisibility.SELF && v != LoveRecordVisibility.COUPLE) {
             throw new TimelineBusinessException(40053, "invalid visibility");
         }
     }
 
+    /** 将持久化实体转为对外 DTO。 */
     private static LoveRecordResponse toResponse(LoveRecord r) {
         return new LoveRecordResponse(
                 r.getId(),
