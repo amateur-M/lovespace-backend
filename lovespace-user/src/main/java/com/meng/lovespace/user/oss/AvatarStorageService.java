@@ -15,5 +15,14 @@ public interface AvatarStorageService {
      * @return 头像访问地址
      */
     String uploadAvatar(String userId, MultipartFile file);
+
+    /**
+     * 上传时间轴配图并返回可访问 URL（与头像相同的存储策略，路径前缀为 {@code timeline}）。
+     *
+     * @param userId 用户 ID
+     * @param file 图片文件
+     * @return 访问地址
+     */
+    String uploadTimelineImage(String userId, MultipartFile file);
 }
 

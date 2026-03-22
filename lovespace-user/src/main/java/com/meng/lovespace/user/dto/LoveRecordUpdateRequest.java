@@ -11,4 +11,5 @@ public record LoveRecordUpdateRequest(
         String mood,
         String locationJson,
         Integer visibility,
-        String tagsJson) {}
+        String tagsJson,
+        String imagesJson) {}

@@ -16,5 +16,6 @@ public record LoveRecordResponse(
         String locationJson,
         Integer visibility,
         String tagsJson,
+        String imagesJson,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {}

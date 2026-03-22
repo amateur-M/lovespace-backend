@@ -5,6 +5,8 @@ import com.meng.lovespace.user.dto.LoveRecordCreateRequest;
 import com.meng.lovespace.user.dto.LoveRecordPageResponse;
 import com.meng.lovespace.user.dto.LoveRecordResponse;
 import com.meng.lovespace.user.dto.LoveRecordUpdateRequest;
+import com.meng.lovespace.user.config.AvatarUploadProperties;
+import com.meng.lovespace.user.oss.AvatarStorageService;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
 import com.meng.lovespace.user.service.LoveRecordService;
 import jakarta.validation.Valid;
@@ -23,7 +25,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 恋爱时间轴：记录的增删改查与回忆推送。
@@ -37,9 +41,46 @@ import org.springframework.web.bind.annotation.RestController;
 public class TimelineController {
 
     private final LoveRecordService loveRecordService;
+    private final AvatarStorageService avatarStorageService;
+    private final AvatarUploadProperties avatarUploadProperties;
 
-    public TimelineController(LoveRecordService loveRecordService) {
+    public TimelineController(
+            LoveRecordService loveRecordService,
+            AvatarStorageService avatarStorageService,
+            AvatarUploadProperties avatarUploadProperties) {
         this.loveRecordService = loveRecordService;
+        this.avatarStorageService = avatarStorageService;
+        this.avatarUploadProperties = avatarUploadProperties;
+    }
+
+    /**
+     * 上传时间轴配图（与头像相同的类型/大小限制），返回可写入 {@code images_json} 的 URL。
+     */
+    @PostMapping("/upload")
+    public ApiResponse<String> uploadTimelineImage(
+            Authentication auth, @RequestPart("file") MultipartFile file) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        if (file == null || file.isEmpty()) {
+            return ApiResponse.error(40010, "file is required");
+        }
+        if (file.getSize() > avatarUploadProperties.maxSizeBytes()) {
+            return ApiResponse.error(
+                    40011,
+                    "image too large, max "
+                            + avatarUploadProperties.maxSizeBytes() / 1024 / 1024
+                            + "MB");
+        }
+        String ext = extensionOf(file.getOriginalFilename());
+        java.util.List<String> allowed = avatarUploadProperties.allowedExtensions();
+        if (allowed == null || allowed.isEmpty()) {
+            allowed = java.util.List.of("jpg", "jpeg", "png", "webp");
+        }
+        if (!allowed.stream().map(String::toLowerCase).toList().contains(ext)) {
+            return ApiResponse.error(40012, "invalid image type, allowed: " + String.join(",", allowed));
+        }
+        String url = avatarStorageService.uploadTimelineImage(p.userId(), file);
+        log.info("timeline.upload userId={} url={}", p.userId(), url);
+        return ApiResponse.ok(url);
     }
 
     @PostMapping("/records")
@@ -53,9 +94,9 @@ public class TimelineController {
     @GetMapping("/records")
     public ApiResponse<LoveRecordPageResponse> listRecords(
             Authentication auth,
-            @RequestParam @NotBlank(message = "coupleId is required") String coupleId,
-            @RequestParam(defaultValue = "1") @Min(1) long page,
-            @RequestParam(defaultValue = "10") @Min(1) @Max(100) long pageSize) {
+            @RequestParam("coupleId") @NotBlank(message = "coupleId is required") String coupleId,
+            @RequestParam(value = "page", defaultValue = "1") @Min(1) long page,
+            @RequestParam(value = "pageSize", defaultValue = "10") @Min(1) @Max(100) long pageSize) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         return ApiResponse.ok(loveRecordService.pageRecords(p.userId(), coupleId, page, pageSize));
     }
@@ -68,14 +109,14 @@ public class TimelineController {
 
     @PutMapping("/records/{id}")
     public ApiResponse<Void> updateRecord(
-            Authentication auth, @PathVariable String id, @RequestBody LoveRecordUpdateRequest req) {
+            Authentication auth, @PathVariable("id") String id, @RequestBody LoveRecordUpdateRequest req) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         loveRecordService.update(p.userId(), id, req);
         return ApiResponse.ok();
     }
 
     @DeleteMapping("/records/{id}")
-    public ApiResponse<Void> deleteRecord(Authentication auth, @PathVariable String id) {
+    public ApiResponse<Void> deleteRecord(Authentication auth, @PathVariable("id") String id) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         loveRecordService.delete(p.userId(), id);
         return ApiResponse.ok();
@@ -87,9 +128,16 @@ public class TimelineController {
     @GetMapping("/memories")
     public ApiResponse<List<LoveRecordResponse>> memories(
             Authentication auth,
-            @RequestParam @NotBlank(message = "coupleId is required") String coupleId,
-            @RequestParam(defaultValue = "10") @Min(1) @Max(30) int limit) {
+            @RequestParam("coupleId") @NotBlank(message = "coupleId is required") String coupleId,
+            @RequestParam(value = "limit", defaultValue = "10") @Min(1) @Max(30) int limit) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         return ApiResponse.ok(loveRecordService.memories(p.userId(), coupleId, limit));
+    }
+
+    private static String extensionOf(String filename) {
+        if (filename == null || !filename.contains(".")) {
+            return "";
+        }
+        return filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
     }
 }

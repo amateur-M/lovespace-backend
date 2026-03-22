@@ -55,6 +55,7 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
         row.setLocationJson(req.locationJson());
         row.setVisibility(req.visibility());
         row.setTagsJson(req.tagsJson());
+        row.setImagesJson(req.imagesJson());
         save(row);
         return LoveRecordServiceImpl.toResponse(row);
     }
@@ -233,6 +234,7 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
                 r.getLocationJson(),
                 r.getVisibility(),
                 r.getTagsJson(),
+                r.getImagesJson(),
                 r.getCreatedAt(),
                 r.getUpdatedAt());
     }

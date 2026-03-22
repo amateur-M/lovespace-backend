@@ -80,7 +80,7 @@ public class UserController {
      * @return 用户或 404
      */
     @GetMapping("/{id}")
-    public ApiResponse<UserResponse> getById(@PathVariable String id) {
+    public ApiResponse<UserResponse> getById(@PathVariable("id") String id) {
         return Optional.ofNullable(userService.getById(id))
                 .map(u -> ApiResponse.ok(toResponse(u)))
                 .orElseGet(() -> ApiResponse.error(40400, "user not found"));
@@ -95,8 +95,8 @@ public class UserController {
      */
     @GetMapping
     public ApiResponse<IPage<UserResponse>> page(
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size) {
+            @RequestParam(value = "page", defaultValue = "1") long page,
+            @RequestParam(value = "size", defaultValue = "10") long size) {
         Page<User> p = userService.page(Page.of(page, size));
         IPage<UserResponse> resp = p.convert(this::toResponse);
         return ApiResponse.ok(resp);
@@ -109,7 +109,7 @@ public class UserController {
      * @return 成功或 404
      */
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable String id) {
+    public ApiResponse<Void> delete(@PathVariable("id") String id) {
         log.info("users.delete id={}", id);
         boolean ok = userService.removeById(id);
         return ok ? ApiResponse.ok() : ApiResponse.error(40400, "user not found");

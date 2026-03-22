@@ -21,4 +21,5 @@ public record LoveRecordCreateRequest(
                 String mood,
         String locationJson,
         @NotNull(message = "visibility is required") @Min(1) @Max(2) Integer visibility,
-        String tagsJson) {}
+        String tagsJson,
+        String imagesJson) {}

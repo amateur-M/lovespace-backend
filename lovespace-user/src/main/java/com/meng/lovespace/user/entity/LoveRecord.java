@@ -45,6 +45,10 @@ public class LoveRecord {
     @TableField("tags_json")
     private String tagsJson;
 
+    /** 图片 URL 列表 JSON 字符串，如 ["https://..."] */
+    @TableField("images_json")
+    private String imagesJson;
+
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
