@@ -16,6 +16,7 @@ import com.meng.lovespace.user.service.UserService;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -136,6 +137,22 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
         }
         binding.setStatus(CoupleBindingStatus.SEPARATED);
         updateById(binding);
+    }
+
+    @Override
+    public Optional<CoupleBinding> findActiveOrFrozenMembership(String userId, String coupleId) {
+        CoupleBinding b = getById(coupleId);
+        if (b == null) {
+            return Optional.empty();
+        }
+        Integer st = b.getStatus();
+        if (!Objects.equals(st, CoupleBindingStatus.ACTIVE) && !Objects.equals(st, CoupleBindingStatus.FROZEN)) {
+            return Optional.empty();
+        }
+        if (!userId.equals(b.getUserId1()) && !userId.equals(b.getUserId2())) {
+            return Optional.empty();
+        }
+        return Optional.of(b);
     }
 
     private void refreshRelationshipDaysIfNeeded(CoupleBinding binding, LocalDate today) {

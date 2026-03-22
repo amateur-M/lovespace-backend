@@ -39,4 +39,12 @@ public interface CoupleBindingService extends IService<CoupleBinding> {
 
     /** 将当前情侣关系标记为已解除。 */
     void separate(String userId);
+
+    /**
+     * 若 {@code coupleId} 存在且状态为交往/冻结，且 {@code userId} 为成员之一，则返回该绑定。
+     *
+     * @param userId 当前用户
+     * @param coupleId 情侣绑定主键（即 couple_binding.id）
+     */
+    Optional<CoupleBinding> findActiveOrFrozenMembership(String userId, String coupleId);
 }
