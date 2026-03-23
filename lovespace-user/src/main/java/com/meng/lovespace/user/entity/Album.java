@@ -10,6 +10,8 @@ import lombok.Data;
 
 /**
  * 情侣相册，映射表 {@code couple_albums}。
+ *
+ * <p>{@code coupleId} 对应 {@code couple_binding.id}。
  */
 @Data
 @TableName("couple_albums")
@@ -18,6 +20,7 @@ public class Album {
     @TableId(value = "id", type = IdType.ASSIGN_UUID)
     private String id;
 
+    /** 情侣绑定主键 */
     @TableField("couple_id")
     private String coupleId;
 

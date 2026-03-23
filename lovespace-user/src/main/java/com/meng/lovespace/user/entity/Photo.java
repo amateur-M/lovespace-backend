@@ -43,6 +43,7 @@ public class Photo {
     @TableField("tags_json")
     private String tagsJson;
 
+    /** 是否收藏：0 否，1 是 */
     @TableField("is_favorite")
     private Integer isFavorite;
 

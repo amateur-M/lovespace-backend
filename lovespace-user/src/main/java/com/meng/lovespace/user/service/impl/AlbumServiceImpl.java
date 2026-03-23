@@ -59,13 +59,10 @@ public class AlbumServiceImpl extends ServiceImpl<AlbumMapper, Album> implements
     @Override
     public List<AlbumResponse> listAlbums(String userId, String coupleId) {
         assertCoupleMember(userId, coupleId);
-        return lambdaQuery()
-                .eq(Album::getCoupleId, coupleId)
-                .orderByDesc(Album::getCreatedAt)
-                .list()
-                .stream()
-                .map(AlbumServiceImpl::toAlbumResponse)
-                .toList();
+        List<Album> rows =
+                lambdaQuery().eq(Album::getCoupleId, coupleId).orderByDesc(Album::getCreatedAt).list();
+        log.debug("album.list coupleId={} userId={} count={}", coupleId, userId, rows.size());
+        return rows.stream().map(AlbumServiceImpl::toAlbumResponse).toList();
     }
 
     @Override
@@ -97,6 +94,11 @@ public class AlbumServiceImpl extends ServiceImpl<AlbumMapper, Album> implements
             throw new AlbumBusinessException(40063, "takenDate cannot be in the future");
         }
 
+        log.debug(
+                "album.photo.persist start albumId={} uploaderId={} bytes={}",
+                albumId,
+                userId,
+                file.getSize());
         String imageUrl = avatarStorageService.uploadAlbumPhoto(userId, file);
         Photo photo = new Photo();
         photo.setAlbumId(albumId);
@@ -127,7 +129,9 @@ public class AlbumServiceImpl extends ServiceImpl<AlbumMapper, Album> implements
         assertCoupleMember(userId, album.getCoupleId());
         LambdaQueryWrapper<Photo> w = new LambdaQueryWrapper<>();
         w.eq(Photo::getAlbumId, albumId).orderByDesc(Photo::getCreatedAt);
-        return photoMapper.selectList(w).stream().map(AlbumServiceImpl::toPhotoResponse).toList();
+        List<Photo> rows = photoMapper.selectList(w);
+        log.debug("album.photos.list albumId={} userId={} count={}", albumId, userId, rows.size());
+        return rows.stream().map(AlbumServiceImpl::toPhotoResponse).toList();
     }
 
     @Override
@@ -163,8 +167,15 @@ public class AlbumServiceImpl extends ServiceImpl<AlbumMapper, Album> implements
         }
         photo.setIsFavorite(favorite ? 1 : 0);
         photoMapper.updateById(photo);
+        log.info(
+                "album.photo.favorite albumId={} photoId={} userId={} favorite={}",
+                albumId,
+                photoId,
+                userId,
+                favorite);
     }
 
+    /** 要求 {@code coupleId} 为交往中或冻结态绑定，且 {@code userId} 为成员之一。 */
     private void assertCoupleMember(String userId, String coupleId) {
         coupleBindingService
                 .findActiveOrFrozenMembership(userId, coupleId)

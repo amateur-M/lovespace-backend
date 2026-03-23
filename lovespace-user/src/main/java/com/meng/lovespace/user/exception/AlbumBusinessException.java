@@ -12,6 +12,7 @@ public class AlbumBusinessException extends RuntimeException {
         this.code = code;
     }
 
+    /** 非 0 业务码，与 {@link com.meng.lovespace.common.web.ApiResponse} 约定一致。 */
     public int getCode() {
         return code;
     }
