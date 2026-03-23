@@ -30,6 +30,11 @@ logging:
 spring:
   application:
     name: lovespace-user
+  servlet:
+    multipart:
+      # 相册上传不在 Controller 校验大小；框架层放宽到极大值（实际仍受 Tomcat/网关/磁盘限制）
+      max-file-size: 10GB
+      max-request-size: 10GB
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/lovespace?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true

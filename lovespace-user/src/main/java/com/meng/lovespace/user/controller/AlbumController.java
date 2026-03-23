@@ -112,11 +112,6 @@ public class AlbumController {
         if (file == null || file.isEmpty()) {
             throw new com.meng.lovespace.user.exception.AlbumBusinessException(40060, "file is required");
         }
-        if (file.getSize() > avatarUploadProperties.maxSizeBytes()) {
-            throw new com.meng.lovespace.user.exception.AlbumBusinessException(
-                    40061,
-                    "image too large, max " + avatarUploadProperties.maxSizeBytes() / 1024 / 1024 + "MB");
-        }
         String ext = extensionOf(file.getOriginalFilename());
         List<String> allowed = avatarUploadProperties.allowedExtensions();
         if (allowed == null || allowed.isEmpty()) {
