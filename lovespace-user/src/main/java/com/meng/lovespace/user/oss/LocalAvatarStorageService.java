@@ -99,6 +99,40 @@ public class LocalAvatarStorageService implements AvatarStorageService {
         return trimRightSlash(base) + "/" + objectKey;
     }
 
+    @Override
+    public String uploadAlbumPhoto(String userId, MultipartFile file) {
+        String ext = getExtension(file.getOriginalFilename());
+        String objectKey =
+                "albums/%s/%s/%s-%s.%s"
+                        .formatted(
+                                LocalDate.now(),
+                                userId,
+                                System.currentTimeMillis(),
+                                UUID.randomUUID().toString().substring(0, 8),
+                                ext);
+
+        Path root = resolveRootDir();
+        Path target = root.resolve(objectKey).normalize();
+        try {
+            Files.createDirectories(target.getParent());
+            file.transferTo(target);
+        } catch (IOException e) {
+            throw new IllegalStateException("save album image to local storage failed", e);
+        }
+
+        log.info(
+                "local album image saved userId={} absolutePath={} size={}",
+                userId,
+                target,
+                file.getSize());
+
+        String base = props.publicBaseUrl();
+        if (base == null || base.isBlank()) {
+            return "/local-files/" + objectKey;
+        }
+        return trimRightSlash(base) + "/" + objectKey;
+    }
+
     /** 解析上传根目录，未配置则使用当前工作目录下 {@code uploads}。 */
     private Path resolveRootDir() {
         String configured = props.uploadDir();
