@@ -25,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class MessageServiceImpl extends ServiceImpl<MessageMapper, PrivateMessage> implements MessageService {
 
+    private static final long RETRACT_WINDOW_MINUTES = 2L;
+
     private final CoupleBindingService coupleBindingService;
 
     public MessageServiceImpl(CoupleBindingService coupleBindingService) {
@@ -150,6 +152,10 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, PrivateMessag
         }
         if (Integer.valueOf(1).equals(row.getIsRetracted())) {
             return;
+        }
+        LocalDateTime createdAt = row.getCreatedAt();
+        if (createdAt == null || LocalDateTime.now().isAfter(createdAt.plusMinutes(RETRACT_WINDOW_MINUTES))) {
+            throw new MessageBusinessException(40078, "retract time window exceeded (2 minutes)");
         }
         row.setIsRetracted(1);
         updateById(row);

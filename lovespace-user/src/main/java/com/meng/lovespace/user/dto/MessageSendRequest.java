@@ -11,5 +11,5 @@ public record MessageSendRequest(
         @NotBlank(message = "receiverId is required") String receiverId,
         @NotBlank(message = "content is required") String content,
         @NotBlank(message = "messageType is required")
-                @Pattern(regexp = "text|image|voice|letter", message = "invalid messageType")
-                String messageType) {}
+        @Pattern(regexp = "text|image|voice|letter", message = "invalid messageType")
+        String messageType) {}
