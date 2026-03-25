@@ -12,6 +12,7 @@ import com.meng.lovespace.user.exception.MessageBusinessException;
 import com.meng.lovespace.user.mapper.MessageMapper;
 import com.meng.lovespace.user.service.CoupleBindingService;
 import com.meng.lovespace.user.service.MessageService;
+import com.meng.lovespace.user.websocket.ChatSessionRegistry;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -28,9 +29,11 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, PrivateMessag
     private static final long RETRACT_WINDOW_MINUTES = 2L;
 
     private final CoupleBindingService coupleBindingService;
+    private final ChatSessionRegistry chatSessionRegistry;
 
-    public MessageServiceImpl(CoupleBindingService coupleBindingService) {
+    public MessageServiceImpl(CoupleBindingService coupleBindingService, ChatSessionRegistry chatSessionRegistry) {
         this.coupleBindingService = coupleBindingService;
+        this.chatSessionRegistry = chatSessionRegistry;
     }
 
     @Override
@@ -53,7 +56,9 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, PrivateMessag
         row.setIsRetracted(0);
         save(row);
         log.info("message.sent id={} coupleId={} senderId={} receiverId={}", row.getId(), row.getCoupleId(), senderId, req.receiverId());
-        return toResponse(row);
+        PrivateMessageResponse resp = toResponse(row);
+        chatSessionRegistry.broadcastToCouple(row.getCoupleId(), resp);
+        return resp;
     }
 
     @Override
@@ -137,6 +142,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, PrivateMessag
         row.setReadTime(LocalDateTime.now());
         updateById(row);
         log.info("message.read id={} receiverId={}", messageId, userId);
+        PrivateMessageResponse resp = toResponse(row);
+        chatSessionRegistry.broadcastToCouple(row.getCoupleId(), resp);
     }
 
     @Override
@@ -160,6 +167,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, PrivateMessag
         row.setIsRetracted(1);
         updateById(row);
         log.info("message.retracted id={} senderId={}", messageId, userId);
+        PrivateMessageResponse resp = toResponse(row);
+        chatSessionRegistry.broadcastToCouple(row.getCoupleId(), resp);
     }
 
     @Override
@@ -177,6 +186,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, PrivateMessag
         for (PrivateMessage row : due) {
             row.setIsScheduled(0);
             updateById(row);
+            PrivateMessageResponse resp = toResponse(row);
+            chatSessionRegistry.broadcastToCouple(row.getCoupleId(), resp);
         }
         log.info("message.dispatch.scheduled count={}", due.size());
         return due.size();
