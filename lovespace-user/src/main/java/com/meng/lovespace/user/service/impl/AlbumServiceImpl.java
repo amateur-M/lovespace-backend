@@ -1,8 +1,10 @@
 package com.meng.lovespace.user.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.meng.lovespace.user.dto.AlbumCreateRequest;
+import com.meng.lovespace.user.dto.AlbumPhotoPageResponse;
 import com.meng.lovespace.user.dto.AlbumResponse;
 import com.meng.lovespace.user.dto.PhotoResponse;
 import com.meng.lovespace.user.dto.PhotoUploadRequest;
@@ -121,17 +123,26 @@ public class AlbumServiceImpl extends ServiceImpl<AlbumMapper, Album> implements
     }
 
     @Override
-    public List<PhotoResponse> listPhotos(String userId, String albumId) {
+    public AlbumPhotoPageResponse pagePhotos(String userId, String albumId, long page, long pageSize) {
         Album album = getById(albumId);
         if (album == null) {
             throw new AlbumBusinessException(40461, "album not found");
         }
         assertCoupleMember(userId, album.getCoupleId());
+        Page<Photo> p = new Page<>(Math.max(1, page), Math.max(1, Math.min(pageSize, 100)));
         LambdaQueryWrapper<Photo> w = new LambdaQueryWrapper<>();
         w.eq(Photo::getAlbumId, albumId).orderByDesc(Photo::getCreatedAt);
-        List<Photo> rows = photoMapper.selectList(w);
-        log.debug("album.photos.list albumId={} userId={} count={}", albumId, userId, rows.size());
-        return rows.stream().map(AlbumServiceImpl::toPhotoResponse).toList();
+        Page<Photo> result = photoMapper.selectPage(p, w);
+        List<PhotoResponse> list = result.getRecords().stream().map(AlbumServiceImpl::toPhotoResponse).toList();
+        log.debug(
+                "album.photos.page albumId={} userId={} page={} pageSize={} total={} returned={}",
+                albumId,
+                userId,
+                result.getCurrent(),
+                result.getSize(),
+                result.getTotal(),
+                list.size());
+        return new AlbumPhotoPageResponse(result.getTotal(), result.getCurrent(), result.getSize(), list);
     }
 
     @Override

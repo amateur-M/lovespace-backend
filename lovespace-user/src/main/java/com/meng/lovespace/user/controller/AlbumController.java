@@ -3,6 +3,7 @@ package com.meng.lovespace.user.controller;
 import com.meng.lovespace.common.web.ApiResponse;
 import com.meng.lovespace.user.config.AvatarUploadProperties;
 import com.meng.lovespace.user.dto.AlbumCreateRequest;
+import com.meng.lovespace.user.dto.AlbumPhotoPageResponse;
 import com.meng.lovespace.user.dto.AlbumResponse;
 import com.meng.lovespace.user.dto.PhotoFavoriteRequest;
 import com.meng.lovespace.user.dto.PhotoResponse;
@@ -10,6 +11,8 @@ import com.meng.lovespace.user.dto.PhotoUploadRequest;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
 import com.meng.lovespace.user.service.AlbumService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import java.time.LocalDate;
 import java.util.List;
@@ -95,10 +98,19 @@ public class AlbumController {
     }
 
     @GetMapping("/{id}/photos")
-    public ApiResponse<List<PhotoResponse>> listPhotos(Authentication auth, @PathVariable("id") String id) {
+    public ApiResponse<AlbumPhotoPageResponse> listPhotos(
+            Authentication auth,
+            @PathVariable("id") String id,
+            @RequestParam(value = "page", defaultValue = "1") @Min(1) long page,
+            @RequestParam(value = "pageSize", defaultValue = "10") @Min(1) @Max(100) long pageSize) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        log.debug("album.api.photos.list userId={} albumId={}", p.userId(), id);
-        return ApiResponse.ok(albumService.listPhotos(p.userId(), id));
+        log.debug(
+                "album.api.photos.list userId={} albumId={} page={} pageSize={}",
+                p.userId(),
+                id,
+                page,
+                pageSize);
+        return ApiResponse.ok(albumService.pagePhotos(p.userId(), id, page, pageSize));
     }
 
     @DeleteMapping("/{albumId}/photos/{photoId}")
