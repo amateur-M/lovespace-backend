@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.meng.lovespace.user.dto.PlanCreateRequest;
 import com.meng.lovespace.user.dto.PlanResponse;
 import com.meng.lovespace.user.dto.PlanTaskCreateRequest;
+import com.meng.lovespace.user.dto.PlanTaskReplaceRequest;
 import com.meng.lovespace.user.dto.PlanTaskResponse;
 import com.meng.lovespace.user.dto.PlanUpdateRequest;
 import com.meng.lovespace.user.entity.CoupleBinding;
@@ -183,7 +184,41 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public PlanTaskResponse completeTask(String userId, String planId, String taskId) {
+    public PlanTaskResponse updateTask(String userId, String planId, String taskId, PlanTaskReplaceRequest req) {
+        Plan plan = getById(planId);
+        if (plan == null) {
+            throw new PlanBusinessException(40480, "plan not found");
+        }
+        CoupleBinding binding = requireBinding(userId, plan.getCoupleId());
+
+        PlanTask task = planTaskMapper.selectById(taskId);
+        if (task == null || !Objects.equals(task.getPlanId(), planId)) {
+            throw new PlanBusinessException(40481, "task not found");
+        }
+
+        assertAssigneeAllowed(binding, req.assigneeId());
+
+        task.setTitle(req.title().trim());
+        task.setAssigneeId(StringUtils.hasText(req.assigneeId()) ? req.assigneeId().trim() : null);
+        task.setDueDate(req.dueDate());
+
+        if (req.completed()) {
+            task.setIsCompleted(1);
+            if (task.getCompletedAt() == null) {
+                task.setCompletedAt(LocalDateTime.now());
+            }
+        } else {
+            task.setIsCompleted(0);
+            task.setCompletedAt(null);
+        }
+        planTaskMapper.updateById(task);
+        log.info("plan.task.updated planId={} taskId={} userId={}", planId, taskId, userId);
+        return toTaskResponse(task);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteTask(String userId, String planId, String taskId) {
         Plan plan = getById(planId);
         if (plan == null) {
             throw new PlanBusinessException(40480, "plan not found");
@@ -194,14 +229,8 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
         if (task == null || !Objects.equals(task.getPlanId(), planId)) {
             throw new PlanBusinessException(40481, "task not found");
         }
-        if (task.getIsCompleted() != null && task.getIsCompleted() == 1) {
-            return toTaskResponse(task);
-        }
-        task.setIsCompleted(1);
-        task.setCompletedAt(LocalDateTime.now());
-        planTaskMapper.updateById(task);
-        log.info("plan.task.completed planId={} taskId={} userId={}", planId, taskId, userId);
-        return toTaskResponse(task);
+        planTaskMapper.deleteById(taskId);
+        log.info("plan.task.deleted planId={} taskId={} userId={}", planId, taskId, userId);
     }
 
     private List<PlanTaskResponse> listTaskResponsesForPlan(String planId) {

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.meng.lovespace.user.dto.PlanCreateRequest;
 import com.meng.lovespace.user.dto.PlanResponse;
 import com.meng.lovespace.user.dto.PlanTaskCreateRequest;
+import com.meng.lovespace.user.dto.PlanTaskReplaceRequest;
 import com.meng.lovespace.user.dto.PlanTaskResponse;
 import com.meng.lovespace.user.dto.PlanUpdateRequest;
 import com.meng.lovespace.user.entity.Plan;
@@ -29,6 +30,9 @@ public interface PlanService extends IService<Plan> {
     /** 在计划下创建子任务。 */
     PlanTaskResponse createTask(String userId, String planId, PlanTaskCreateRequest req);
 
-    /** 将子任务标记为已完成。 */
-    PlanTaskResponse completeTask(String userId, String planId, String taskId);
+    /** 更新子任务（标题、负责人、截止日、完成状态）。 */
+    PlanTaskResponse updateTask(String userId, String planId, String taskId, PlanTaskReplaceRequest req);
+
+    /** 删除子任务。 */
+    void deleteTask(String userId, String planId, String taskId);
 }

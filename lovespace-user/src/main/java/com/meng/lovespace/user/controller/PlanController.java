@@ -4,6 +4,7 @@ import com.meng.lovespace.common.web.ApiResponse;
 import com.meng.lovespace.user.dto.PlanCreateRequest;
 import com.meng.lovespace.user.dto.PlanResponse;
 import com.meng.lovespace.user.dto.PlanTaskCreateRequest;
+import com.meng.lovespace.user.dto.PlanTaskReplaceRequest;
 import com.meng.lovespace.user.dto.PlanTaskResponse;
 import com.meng.lovespace.user.dto.PlanUpdateRequest;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
@@ -81,10 +82,22 @@ public class PlanController {
     }
 
     @PutMapping("/{id}/tasks/{taskId}")
-    public ApiResponse<PlanTaskResponse> completeTask(
+    public ApiResponse<PlanTaskResponse> updateTask(
+            Authentication auth,
+            @PathVariable("id") String id,
+            @PathVariable("taskId") String taskId,
+            @Valid @RequestBody PlanTaskReplaceRequest req) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug("plan.api.task.update userId={} planId={} taskId={}", p.userId(), id, taskId);
+        return ApiResponse.ok(planService.updateTask(p.userId(), id, taskId, req));
+    }
+
+    @DeleteMapping("/{id}/tasks/{taskId}")
+    public ApiResponse<Void> deleteTask(
             Authentication auth, @PathVariable("id") String id, @PathVariable("taskId") String taskId) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        log.debug("plan.api.task.complete userId={} planId={} taskId={}", p.userId(), id, taskId);
-        return ApiResponse.ok(planService.completeTask(p.userId(), id, taskId));
+        log.debug("plan.api.task.delete userId={} planId={} taskId={}", p.userId(), id, taskId);
+        planService.deleteTask(p.userId(), id, taskId);
+        return ApiResponse.ok();
     }
 }
