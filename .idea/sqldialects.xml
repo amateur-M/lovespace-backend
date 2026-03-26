@@ -2,6 +2,7 @@
 <project version="4">
   <component name="SqlDialectMappings">
     <file url="file://$PROJECT_DIR$/lovespace-user/src/main/resources/sql/couple_albums.sql" dialect="MySQL" />
+    <file url="file://$PROJECT_DIR$/lovespace-user/src/main/resources/sql/couple_plans.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/lovespace-user/src/main/resources/sql/love_records.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/lovespace-user/src/main/resources/sql/love_records_add_images_json.sql" dialect="MySQL" />
     <file url="file://$PROJECT_DIR$/lovespace-user/src/main/resources/sql/private_messages.sql" dialect="MySQL" />
