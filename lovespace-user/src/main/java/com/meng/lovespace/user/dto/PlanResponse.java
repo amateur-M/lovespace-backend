@@ -21,6 +21,7 @@ public record PlanResponse(
         Integer progress,
         BigDecimal budgetTotal,
         BigDecimal budgetSpent,
+        PlanExpenseSummaryResponse expenseSummary,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
         List<PlanTaskResponse> tasks) {}

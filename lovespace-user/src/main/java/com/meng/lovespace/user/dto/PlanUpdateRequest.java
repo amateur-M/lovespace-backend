@@ -15,5 +15,4 @@ public record PlanUpdateRequest(
         LocalDate endDate,
         String status,
         Integer progress,
-        BigDecimal budgetTotal,
-        BigDecimal budgetSpent) {}
+        BigDecimal budgetTotal) {}

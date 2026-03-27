@@ -3,6 +3,10 @@ package com.meng.lovespace.user.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.meng.lovespace.user.dto.PlanCreateRequest;
+import com.meng.lovespace.user.dto.PlanExpenseCreateRequest;
+import com.meng.lovespace.user.dto.PlanExpenseResponse;
+import com.meng.lovespace.user.dto.PlanExpenseSummaryResponse;
+import com.meng.lovespace.user.dto.PlanExpenseReplaceRequest;
 import com.meng.lovespace.user.dto.PlanResponse;
 import com.meng.lovespace.user.dto.PlanTaskCreateRequest;
 import com.meng.lovespace.user.dto.PlanTaskReplaceRequest;
@@ -10,16 +14,20 @@ import com.meng.lovespace.user.dto.PlanTaskResponse;
 import com.meng.lovespace.user.dto.PlanUpdateRequest;
 import com.meng.lovespace.user.entity.CoupleBinding;
 import com.meng.lovespace.user.entity.Plan;
+import com.meng.lovespace.user.entity.PlanExpense;
 import com.meng.lovespace.user.entity.PlanTask;
 import com.meng.lovespace.user.exception.PlanBusinessException;
+import com.meng.lovespace.user.mapper.PlanExpenseMapper;
 import com.meng.lovespace.user.mapper.PlanMapper;
 import com.meng.lovespace.user.mapper.PlanTaskMapper;
 import com.meng.lovespace.user.service.CoupleBindingService;
 import com.meng.lovespace.user.service.PlanService;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -39,12 +47,19 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
 
     private static final Set<String> PLAN_TYPES = Set.of("goal", "travel", "event");
 
+    private static final Set<String> EXPENSE_TYPES = Set.of("lodging", "transport", "dining", "other");
+
     private final CoupleBindingService coupleBindingService;
     private final PlanTaskMapper planTaskMapper;
+    private final PlanExpenseMapper planExpenseMapper;
 
-    public PlanServiceImpl(CoupleBindingService coupleBindingService, PlanTaskMapper planTaskMapper) {
+    public PlanServiceImpl(
+            CoupleBindingService coupleBindingService,
+            PlanTaskMapper planTaskMapper,
+            PlanExpenseMapper planExpenseMapper) {
         this.coupleBindingService = coupleBindingService;
         this.planTaskMapper = planTaskMapper;
+        this.planExpenseMapper = planExpenseMapper;
     }
 
     @Override
@@ -71,10 +86,10 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
         plan.setStatus(status);
         plan.setProgress(progress);
         plan.setBudgetTotal(req.budgetTotal());
-        plan.setBudgetSpent(req.budgetSpent());
+        plan.setBudgetSpent(null);
         save(plan);
         log.info("plan.created id={} coupleId={} userId={}", plan.getId(), plan.getCoupleId(), userId);
-        return toPlanResponse(plan, List.of());
+        return toPlanResponse(plan, List.of(), emptyExpenseSummary());
     }
 
     @Override
@@ -90,12 +105,14 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
         List<PlanTask> tasks = planTaskMapper.selectList(q);
         Map<String, List<PlanTask>> byPlan =
                 tasks.stream().collect(Collectors.groupingBy(PlanTask::getPlanId));
+        Map<String, PlanExpenseSummaryResponse> summaries = summarizeByPlanIds(planIds);
         return plans.stream()
                 .map(p -> {
                     // getOrDefault(..., List.of()) 为不可变列表，直接 sort 会抛异常；复制到 ArrayList 再排序
                     List<PlanTask> ts = new ArrayList<>(byPlan.getOrDefault(p.getId(), List.of()));
                     ts.sort(Comparator.comparing(PlanTask::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
-                    return toPlanResponse(p, ts.stream().map(PlanServiceImpl::toTaskResponse).toList());
+                    PlanExpenseSummaryResponse sum = summaries.getOrDefault(p.getId(), emptyExpenseSummary());
+                    return toPlanResponse(p, ts.stream().map(PlanServiceImpl::toTaskResponse).toList(), sum);
                 })
                 .toList();
     }
@@ -138,15 +155,13 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
         if (req.budgetTotal() != null) {
             plan.setBudgetTotal(req.budgetTotal());
         }
-        if (req.budgetSpent() != null) {
-            plan.setBudgetSpent(req.budgetSpent());
-        }
 
         validateDateRange(plan.getStartDate(), plan.getEndDate());
         updateById(plan);
         log.info("plan.updated id={} userId={}", planId, userId);
         List<PlanTaskResponse> taskViews = listTaskResponsesForPlan(planId);
-        return toPlanResponse(plan, taskViews);
+        PlanExpenseSummaryResponse sum = summarizeOnePlan(planId);
+        return toPlanResponse(plan, taskViews, sum);
     }
 
     @Override
@@ -233,6 +248,164 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
         log.info("plan.task.deleted planId={} taskId={} userId={}", planId, taskId, userId);
     }
 
+    @Override
+    public List<PlanExpenseResponse> listPlanExpenses(String userId, String planId) {
+        Plan plan = getById(planId);
+        if (plan == null) {
+            throw new PlanBusinessException(40480, "plan not found");
+        }
+        requireBinding(userId, plan.getCoupleId());
+        LambdaQueryWrapper<PlanExpense> q = new LambdaQueryWrapper<>();
+        q.eq(PlanExpense::getPlanId, planId).orderByDesc(PlanExpense::getCreatedAt);
+        return planExpenseMapper.selectList(q).stream().map(PlanServiceImpl::toExpenseResponse).toList();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PlanExpenseResponse createPlanExpense(String userId, String planId, PlanExpenseCreateRequest req) {
+        Plan plan = getById(planId);
+        if (plan == null) {
+            throw new PlanBusinessException(40480, "plan not found");
+        }
+        requireBinding(userId, plan.getCoupleId());
+        validateExpenseType(req.expenseType());
+
+        PlanExpense e = new PlanExpense();
+        e.setPlanId(planId);
+        e.setExpenseType(req.expenseType().trim().toLowerCase());
+        e.setAmount(req.amount());
+        e.setSpentDate(req.spentDate());
+        e.setNote(StringUtils.hasText(req.note()) ? req.note().trim() : null);
+        e.setCreatedBy(userId);
+        planExpenseMapper.insert(e);
+        refreshBudgetSpent(planId);
+        log.info("plan.expense.created planId={} expenseId={} userId={}", planId, e.getId(), userId);
+        return toExpenseResponse(e);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PlanExpenseResponse updatePlanExpense(
+            String userId, String planId, String expenseId, PlanExpenseReplaceRequest req) {
+        Plan plan = getById(planId);
+        if (plan == null) {
+            throw new PlanBusinessException(40480, "plan not found");
+        }
+        requireBinding(userId, plan.getCoupleId());
+
+        PlanExpense e = planExpenseMapper.selectById(expenseId);
+        if (e == null || !Objects.equals(e.getPlanId(), planId)) {
+            throw new PlanBusinessException(40482, "expense not found");
+        }
+
+        validateExpenseType(req.expenseType());
+        e.setExpenseType(req.expenseType().trim().toLowerCase());
+        e.setAmount(req.amount());
+        e.setSpentDate(req.spentDate());
+        e.setNote(StringUtils.hasText(req.note()) ? req.note().trim() : null);
+        planExpenseMapper.updateById(e);
+        refreshBudgetSpent(planId);
+        log.info("plan.expense.updated planId={} expenseId={} userId={}", planId, expenseId, userId);
+        return toExpenseResponse(e);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deletePlanExpense(String userId, String planId, String expenseId) {
+        Plan plan = getById(planId);
+        if (plan == null) {
+            throw new PlanBusinessException(40480, "plan not found");
+        }
+        requireBinding(userId, plan.getCoupleId());
+
+        PlanExpense e = planExpenseMapper.selectById(expenseId);
+        if (e == null || !Objects.equals(e.getPlanId(), planId)) {
+            throw new PlanBusinessException(40482, "expense not found");
+        }
+        planExpenseMapper.deleteById(expenseId);
+        refreshBudgetSpent(planId);
+        log.info("plan.expense.deleted planId={} expenseId={} userId={}", planId, expenseId, userId);
+    }
+
+    private void refreshBudgetSpent(String planId) {
+        BigDecimal sum = planExpenseMapper.sumAmountByPlanId(planId);
+        if (sum == null) {
+            sum = BigDecimal.ZERO;
+        }
+        Plan plan = getById(planId);
+        if (plan != null) {
+            plan.setBudgetSpent(sum);
+            updateById(plan);
+        }
+    }
+
+    private Map<String, PlanExpenseSummaryResponse> summarizeByPlanIds(List<String> planIds) {
+        if (planIds.isEmpty()) {
+            return Map.of();
+        }
+        LambdaQueryWrapper<PlanExpense> q = new LambdaQueryWrapper<>();
+        q.in(PlanExpense::getPlanId, planIds);
+        List<PlanExpense> rows = planExpenseMapper.selectList(q);
+        Map<String, List<PlanExpense>> byPlan = rows.stream().collect(Collectors.groupingBy(PlanExpense::getPlanId));
+        Map<String, PlanExpenseSummaryResponse> out = new HashMap<>();
+        for (String pid : planIds) {
+            out.put(pid, summarizeRows(byPlan.getOrDefault(pid, List.of())));
+        }
+        return out;
+    }
+
+    private PlanExpenseSummaryResponse summarizeOnePlan(String planId) {
+        LambdaQueryWrapper<PlanExpense> q = new LambdaQueryWrapper<>();
+        q.eq(PlanExpense::getPlanId, planId);
+        return summarizeRows(planExpenseMapper.selectList(q));
+    }
+
+    private static PlanExpenseSummaryResponse summarizeRows(List<PlanExpense> expenses) {
+        BigDecimal lodging = BigDecimal.ZERO;
+        BigDecimal transport = BigDecimal.ZERO;
+        BigDecimal dining = BigDecimal.ZERO;
+        BigDecimal other = BigDecimal.ZERO;
+        for (PlanExpense e : expenses) {
+            BigDecimal amt = e.getAmount() != null ? e.getAmount() : BigDecimal.ZERO;
+            String type = e.getExpenseType() != null ? e.getExpenseType().trim().toLowerCase() : "other";
+            switch (type) {
+                case "lodging" -> lodging = lodging.add(amt);
+                case "transport" -> transport = transport.add(amt);
+                case "dining" -> dining = dining.add(amt);
+                default -> other = other.add(amt);
+            }
+        }
+        BigDecimal total = lodging.add(transport).add(dining).add(other);
+        return new PlanExpenseSummaryResponse(lodging, transport, dining, other, total);
+    }
+
+    private static PlanExpenseSummaryResponse emptyExpenseSummary() {
+        BigDecimal z = BigDecimal.ZERO;
+        return new PlanExpenseSummaryResponse(z, z, z, z, z);
+    }
+
+    private static PlanExpenseResponse toExpenseResponse(PlanExpense e) {
+        return new PlanExpenseResponse(
+                e.getId(),
+                e.getPlanId(),
+                e.getExpenseType(),
+                e.getAmount(),
+                e.getSpentDate(),
+                e.getNote(),
+                e.getCreatedBy(),
+                e.getCreatedAt());
+    }
+
+    private static void validateExpenseType(String expenseType) {
+        if (!StringUtils.hasText(expenseType)) {
+            throw new PlanBusinessException(40085, "expenseType is required");
+        }
+        String t = expenseType.trim().toLowerCase();
+        if (!EXPENSE_TYPES.contains(t)) {
+            throw new PlanBusinessException(40086, "expenseType must be lodging, transport, dining, or other");
+        }
+    }
+
     private List<PlanTaskResponse> listTaskResponsesForPlan(String planId) {
         LambdaQueryWrapper<PlanTask> q = new LambdaQueryWrapper<>();
         q.eq(PlanTask::getPlanId, planId).orderByAsc(PlanTask::getCreatedAt);
@@ -277,7 +450,8 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
         }
     }
 
-    private static PlanResponse toPlanResponse(Plan p, List<PlanTaskResponse> tasks) {
+    private static PlanResponse toPlanResponse(
+            Plan p, List<PlanTaskResponse> tasks, PlanExpenseSummaryResponse expenseSummary) {
         return new PlanResponse(
                 p.getId(),
                 p.getCoupleId(),
@@ -290,7 +464,8 @@ public class PlanServiceImpl extends ServiceImpl<PlanMapper, Plan> implements Pl
                 p.getStatus(),
                 p.getProgress(),
                 p.getBudgetTotal(),
-                p.getBudgetSpent(),
+                expenseSummary.total(),
+                expenseSummary,
                 p.getCreatedAt(),
                 p.getUpdatedAt(),
                 tasks);

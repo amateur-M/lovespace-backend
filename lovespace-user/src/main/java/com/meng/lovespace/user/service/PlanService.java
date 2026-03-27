@@ -2,6 +2,9 @@ package com.meng.lovespace.user.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.meng.lovespace.user.dto.PlanCreateRequest;
+import com.meng.lovespace.user.dto.PlanExpenseCreateRequest;
+import com.meng.lovespace.user.dto.PlanExpenseResponse;
+import com.meng.lovespace.user.dto.PlanExpenseReplaceRequest;
 import com.meng.lovespace.user.dto.PlanResponse;
 import com.meng.lovespace.user.dto.PlanTaskCreateRequest;
 import com.meng.lovespace.user.dto.PlanTaskReplaceRequest;
@@ -35,4 +38,17 @@ public interface PlanService extends IService<Plan> {
 
     /** 删除子任务。 */
     void deleteTask(String userId, String planId, String taskId);
+
+    /** 列出计划下的消费记录（按创建时间倒序）。 */
+    List<PlanExpenseResponse> listPlanExpenses(String userId, String planId);
+
+    /** 新增一条消费记录，并回写计划的 {@code budget_spent} 汇总。 */
+    PlanExpenseResponse createPlanExpense(String userId, String planId, PlanExpenseCreateRequest req);
+
+    /** 更新消费记录（整单替换）。 */
+    PlanExpenseResponse updatePlanExpense(
+            String userId, String planId, String expenseId, PlanExpenseReplaceRequest req);
+
+    /** 删除消费记录。 */
+    void deletePlanExpense(String userId, String planId, String expenseId);
 }

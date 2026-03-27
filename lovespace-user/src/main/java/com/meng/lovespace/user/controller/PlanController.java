@@ -2,6 +2,9 @@ package com.meng.lovespace.user.controller;
 
 import com.meng.lovespace.common.web.ApiResponse;
 import com.meng.lovespace.user.dto.PlanCreateRequest;
+import com.meng.lovespace.user.dto.PlanExpenseCreateRequest;
+import com.meng.lovespace.user.dto.PlanExpenseResponse;
+import com.meng.lovespace.user.dto.PlanExpenseReplaceRequest;
 import com.meng.lovespace.user.dto.PlanResponse;
 import com.meng.lovespace.user.dto.PlanTaskCreateRequest;
 import com.meng.lovespace.user.dto.PlanTaskReplaceRequest;
@@ -98,6 +101,46 @@ public class PlanController {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         log.debug("plan.api.task.delete userId={} planId={} taskId={}", p.userId(), id, taskId);
         planService.deleteTask(p.userId(), id, taskId);
+        return ApiResponse.ok();
+    }
+
+    @GetMapping("/{id}/expenses")
+    public ApiResponse<List<PlanExpenseResponse>> listPlanExpenses(
+            Authentication auth, @PathVariable("id") String id) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug("plan.api.expenses.list userId={} planId={}", p.userId(), id);
+        return ApiResponse.ok(planService.listPlanExpenses(p.userId(), id));
+    }
+
+    @PostMapping("/{id}/expenses")
+    public ApiResponse<PlanExpenseResponse> createPlanExpense(
+            Authentication auth,
+            @PathVariable("id") String id,
+            @Valid @RequestBody PlanExpenseCreateRequest req) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug("plan.api.expenses.create userId={} planId={}", p.userId(), id);
+        return ApiResponse.ok(planService.createPlanExpense(p.userId(), id, req));
+    }
+
+    @PutMapping("/{id}/expenses/{expenseId}")
+    public ApiResponse<PlanExpenseResponse> updatePlanExpense(
+            Authentication auth,
+            @PathVariable("id") String id,
+            @PathVariable("expenseId") String expenseId,
+            @Valid @RequestBody PlanExpenseReplaceRequest req) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug("plan.api.expenses.update userId={} planId={} expenseId={}", p.userId(), id, expenseId);
+        return ApiResponse.ok(planService.updatePlanExpense(p.userId(), id, expenseId, req));
+    }
+
+    @DeleteMapping("/{id}/expenses/{expenseId}")
+    public ApiResponse<Void> deletePlanExpense(
+            Authentication auth,
+            @PathVariable("id") String id,
+            @PathVariable("expenseId") String expenseId) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug("plan.api.expenses.delete userId={} planId={} expenseId={}", p.userId(), id, expenseId);
+        planService.deletePlanExpense(p.userId(), id, expenseId);
         return ApiResponse.ok();
     }
 }
