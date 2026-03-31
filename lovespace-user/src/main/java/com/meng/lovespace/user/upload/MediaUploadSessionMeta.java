@@ -1,21 +1,25 @@
-package com.meng.lovespace.user.timeline;
+package com.meng.lovespace.user.upload;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * 分片上传会话元数据（持久化在 {@code meta.json}）。
+ * 分片会话元数据（{@code meta.json}）。
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class TimelineUploadSessionMeta {
+public class MediaUploadSessionMeta {
 
     public String userId;
+    /** {@link MediaChunkTarget#name()} */
+    public String target;
+    /** {@link MediaChunkTarget#ALBUM} 时必填 */
+    public String albumId;
     public String originalFilename;
     public String ext;
     public long totalSize;
     public long chunkSize;
     public int totalChunks;
+    /** 时间轴：是否视频；相册：恒为 false */
     public boolean video;
-    /** 可选，供 MinIO 等写入 Content-Type */
     public String contentType;
     public long createdAtEpochMillis;
 }

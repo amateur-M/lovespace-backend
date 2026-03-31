@@ -133,6 +133,40 @@ public class AliyunOssAvatarStorageService implements AvatarStorageService {
     }
 
     @Override
+    public String uploadAlbumFromLocalFile(String userId, Path localFile, String originalFilename, String contentType) {
+        validateConfig();
+
+        String ext = getExtension(originalFilename);
+        String objectKey =
+                "albums/%s/%s/%s-%s.%s"
+                        .formatted(
+                                LocalDate.now(),
+                                userId,
+                                System.currentTimeMillis(),
+                                UUID.randomUUID().toString().substring(0, 8),
+                                ext);
+
+        OSS ossClient =
+                new OSSClientBuilder().build(props.endpoint(), props.accessKeyId(), props.accessKeySecret());
+        try (InputStream in = Files.newInputStream(localFile)) {
+            ossClient.putObject(props.bucket(), objectKey, in);
+        } catch (IOException e) {
+            throw new IllegalStateException("upload album file to OSS failed", e);
+        } finally {
+            ossClient.shutdown();
+        }
+
+        String url;
+        if (props.publicBaseUrl() != null && !props.publicBaseUrl().isBlank()) {
+            url = trimRightSlash(props.publicBaseUrl()) + "/" + objectKey;
+        } else {
+            url = "https://%s.%s/%s".formatted(props.bucket(), stripHttp(props.endpoint()), objectKey);
+        }
+        log.info("oss album file from path userId={} objectKey={} url={}", userId, objectKey, url);
+        return url;
+    }
+
+    @Override
     public String uploadAlbumPhoto(String userId, MultipartFile file) {
         validateConfig();
 

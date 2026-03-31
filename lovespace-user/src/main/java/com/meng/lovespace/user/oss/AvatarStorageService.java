@@ -45,5 +45,16 @@ public interface AvatarStorageService {
      * @return 访问地址
      */
     String uploadAlbumPhoto(String userId, MultipartFile file);
+
+    /**
+     * 将已合并的本地临时文件发布到相册路径（分片上传完成后调用）。
+     *
+     * @param userId 用户 ID
+     * @param localFile 磁盘临时文件
+     * @param originalFilename 原始文件名
+     * @param contentType MIME，可为空则按扩展名推断
+     * @return 可写入 {@link com.meng.lovespace.user.entity.Photo#getImageUrl} 的 URL
+     */
+    String uploadAlbumFromLocalFile(String userId, Path localFile, String originalFilename, String contentType);
 }
 

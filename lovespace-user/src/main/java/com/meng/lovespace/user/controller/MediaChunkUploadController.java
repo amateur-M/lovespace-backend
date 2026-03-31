@@ -1,12 +1,12 @@
 package com.meng.lovespace.user.controller;
 
 import com.meng.lovespace.common.web.ApiResponse;
-import com.meng.lovespace.user.dto.TimelineUploadInitRequest;
-import com.meng.lovespace.user.dto.TimelineUploadInitResponse;
-import com.meng.lovespace.user.dto.TimelineUploadStatusResponse;
-import com.meng.lovespace.user.exception.TimelineBusinessException;
+import com.meng.lovespace.user.dto.MediaChunkInitRequest;
+import com.meng.lovespace.user.dto.MediaChunkInitResponse;
+import com.meng.lovespace.user.dto.MediaChunkStatusResponse;
+import com.meng.lovespace.user.exception.MediaChunkBusinessException;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
-import com.meng.lovespace.user.service.TimelineChunkUploadService;
+import com.meng.lovespace.user.service.ChunkedMediaUploadService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -24,36 +24,27 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 时间轴媒体分片上传：初始化、按片写入、查询进度、合并完成、取消。
- *
- * <p>需登录；会话绑定创建者 userId。分片请求体为原始二进制，{@code Content-Length} 必须与该片理论长度一致。
+ * 时间轴与相册共用的分片上传 API。
  */
 @Slf4j
 @Validated
 @RestController
-@RequestMapping("/api/v1/timeline/uploads")
-public class TimelineChunkUploadController {
+@RequestMapping("/api/v1/media/uploads")
+public class MediaChunkUploadController {
 
-    private final TimelineChunkUploadService chunkUploadService;
+    private final ChunkedMediaUploadService chunkedMediaUploadService;
 
-    /** @param chunkUploadService 分片上传领域服务 */
-    public TimelineChunkUploadController(TimelineChunkUploadService chunkUploadService) {
-        this.chunkUploadService = chunkUploadService;
+    public MediaChunkUploadController(ChunkedMediaUploadService chunkedMediaUploadService) {
+        this.chunkedMediaUploadService = chunkedMediaUploadService;
     }
 
-    /** 创建上传会话。 */
     @PostMapping("/init")
-    public ApiResponse<TimelineUploadInitResponse> init(
-            Authentication auth, @Valid @RequestBody TimelineUploadInitRequest req) {
+    public ApiResponse<MediaChunkInitResponse> init(
+            Authentication auth, @Valid @RequestBody MediaChunkInitRequest req) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        return ApiResponse.ok(chunkUploadService.initUpload(p.userId(), req));
+        return ApiResponse.ok(chunkedMediaUploadService.initUpload(p.userId(), req));
     }
 
-    /**
-     * 上传一个分片。
-     *
-     * @param chunkIndex 从 0 开始
-     */
     @PutMapping("/{uploadId}/chunks/{chunkIndex}")
     public ApiResponse<Void> putChunk(
             Authentication auth,
@@ -63,41 +54,38 @@ public class TimelineChunkUploadController {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         long cl = request.getContentLengthLong();
         try {
-            chunkUploadService.writeChunk(p.userId(), uploadId, chunkIndex, cl, request.getInputStream());
+            chunkedMediaUploadService.writeChunk(p.userId(), uploadId, chunkIndex, cl, request.getInputStream());
         } catch (IOException e) {
             log.warn(
-                    "timeline.chunk.put io userId={} uploadId={} index={} msg={}",
+                    "media.chunk.put io userId={} uploadId={} index={} msg={}",
                     p.userId(),
                     uploadId,
                     chunkIndex,
                     e.getMessage());
-            throw new TimelineBusinessException(50010, "chunk upload io failed");
+            throw new MediaChunkBusinessException(50010, "chunk upload io failed");
         }
         return ApiResponse.ok();
     }
 
-    /** 查询已上传分片下标（断点续传）。 */
     @GetMapping("/{uploadId}/status")
-    public ApiResponse<TimelineUploadStatusResponse> status(
+    public ApiResponse<MediaChunkStatusResponse> status(
             Authentication auth, @PathVariable("uploadId") String uploadId) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        return ApiResponse.ok(chunkUploadService.status(p.userId(), uploadId));
+        return ApiResponse.ok(chunkedMediaUploadService.status(p.userId(), uploadId));
     }
 
-    /** 合并分片并发布到存储，返回与直传相同的访问 URL。 */
     @PostMapping("/{uploadId}/complete")
     public ApiResponse<String> complete(Authentication auth, @PathVariable("uploadId") String uploadId) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        String url = chunkUploadService.complete(p.userId(), uploadId);
-        log.info("timeline.chunk.api.complete userId={} uploadId={}", p.userId(), uploadId);
+        String url = chunkedMediaUploadService.complete(p.userId(), uploadId);
+        log.info("media.chunk.api.complete userId={} uploadId={}", p.userId(), uploadId);
         return ApiResponse.ok(url);
     }
 
-    /** 取消会话并删除暂存分片。 */
     @DeleteMapping("/{uploadId}")
     public ApiResponse<Void> abort(Authentication auth, @PathVariable("uploadId") String uploadId) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        chunkUploadService.abort(p.userId(), uploadId);
+        chunkedMediaUploadService.abort(p.userId(), uploadId);
         return ApiResponse.ok();
     }
 }

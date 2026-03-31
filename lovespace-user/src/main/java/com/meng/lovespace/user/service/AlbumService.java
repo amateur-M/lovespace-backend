@@ -27,6 +27,12 @@ public interface AlbumService extends IService<Album> {
     /** 上传照片并落库；无封面时首张图作为封面。 */
     PhotoResponse uploadPhoto(String userId, String albumId, MultipartFile file, PhotoUploadRequest req);
 
+    /**
+     * 将已写入对象存储的图片 URL 登记为照片（分片合并后调用）；URL 须匹配当前用户 {@code albums/日期/userId/} 路径。
+     */
+    PhotoResponse registerPhotoFromUploadedUrl(
+            String userId, String albumId, String imageUrl, PhotoUploadRequest req);
+
     /** 分页列出相册内照片（按创建时间倒序）。 */
     AlbumPhotoPageResponse pagePhotos(String userId, String albumId, long page, long pageSize);
 

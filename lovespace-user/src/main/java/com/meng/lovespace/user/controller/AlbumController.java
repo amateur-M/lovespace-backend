@@ -6,6 +6,7 @@ import com.meng.lovespace.user.dto.AlbumCreateRequest;
 import com.meng.lovespace.user.dto.AlbumPhotoPageResponse;
 import com.meng.lovespace.user.dto.AlbumResponse;
 import com.meng.lovespace.user.dto.PhotoFavoriteRequest;
+import com.meng.lovespace.user.dto.PhotoRegisterFromUrlRequest;
 import com.meng.lovespace.user.dto.PhotoResponse;
 import com.meng.lovespace.user.dto.PhotoUploadRequest;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
@@ -95,6 +96,25 @@ public class AlbumController {
                 file.getContentType());
         PhotoUploadRequest req = new PhotoUploadRequest(thumbnailUrl, description, locationJson, takenDate, tagsJson);
         return ApiResponse.ok(albumService.uploadPhoto(p.userId(), id, file, req));
+    }
+
+    /**
+     * 分片合并得到 {@code imageUrl} 后登记照片（与 {@link #uploadPhoto} 二选一）。
+     */
+    @PostMapping("/{albumId}/photos/from-url")
+    public ApiResponse<PhotoResponse> registerPhotoFromUrl(
+            Authentication auth,
+            @PathVariable("albumId") String albumId,
+            @Valid @RequestBody PhotoRegisterFromUrlRequest body) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        PhotoUploadRequest meta =
+                new PhotoUploadRequest(
+                        body.thumbnailUrl(),
+                        body.description(),
+                        body.locationJson(),
+                        body.takenDate(),
+                        body.tagsJson());
+        return ApiResponse.ok(albumService.registerPhotoFromUploadedUrl(p.userId(), albumId, body.imageUrl(), meta));
     }
 
     @GetMapping("/{id}/photos")

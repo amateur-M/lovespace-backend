@@ -15,6 +15,7 @@ import com.meng.lovespace.user.mapper.AlbumMapper;
 import com.meng.lovespace.user.mapper.PhotoMapper;
 import com.meng.lovespace.user.service.AlbumService;
 import com.meng.lovespace.user.service.CoupleBindingService;
+import com.meng.lovespace.user.upload.AlbumImageUrlValidator;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
@@ -119,6 +120,43 @@ public class AlbumServiceImpl extends ServiceImpl<AlbumMapper, Album> implements
             updateById(album);
         }
         log.info("album.photo.uploaded albumId={} photoId={} uploaderId={}", albumId, photo.getId(), userId);
+        return toPhotoResponse(photo);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PhotoResponse registerPhotoFromUploadedUrl(
+            String userId, String albumId, String imageUrl, PhotoUploadRequest req) {
+        Album album = getById(albumId);
+        if (album == null) {
+            throw new AlbumBusinessException(40461, "album not found");
+        }
+        assertCoupleMember(userId, album.getCoupleId());
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        if (req != null && req.takenDate() != null && req.takenDate().isAfter(today)) {
+            throw new AlbumBusinessException(40063, "takenDate cannot be in the future");
+        }
+        if (!AlbumImageUrlValidator.isAllowedAlbumUrl(imageUrl, userId)) {
+            throw new AlbumBusinessException(40064, "invalid or untrusted imageUrl");
+        }
+
+        Photo photo = new Photo();
+        photo.setAlbumId(albumId);
+        photo.setUploaderId(userId);
+        photo.setImageUrl(imageUrl.trim());
+        photo.setThumbnailUrl(req == null ? null : req.thumbnailUrl());
+        photo.setDescription(req == null ? null : req.description());
+        photo.setLocationJson(req == null ? null : req.locationJson());
+        photo.setTakenDate(req == null ? null : req.takenDate());
+        photo.setTagsJson(req == null ? null : req.tagsJson());
+        photo.setIsFavorite(0);
+        photoMapper.insert(photo);
+
+        if (album.getCoverImageUrl() == null || album.getCoverImageUrl().isBlank()) {
+            album.setCoverImageUrl(imageUrl.trim());
+            updateById(album);
+        }
+        log.info("album.photo.registered_from_url albumId={} photoId={} uploaderId={}", albumId, photo.getId(), userId);
         return toPhotoResponse(photo);
     }
 

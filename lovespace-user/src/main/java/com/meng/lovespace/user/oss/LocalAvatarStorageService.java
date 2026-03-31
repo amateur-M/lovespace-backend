@@ -140,6 +140,46 @@ public class LocalAvatarStorageService implements AvatarStorageService {
         return trimRightSlash(base) + "/" + objectKey;
     }
 
+    @Override
+    public String uploadAlbumFromLocalFile(String userId, Path localFile, String originalFilename, String contentType) {
+        String ext = getExtension(originalFilename);
+        String objectKey =
+                "albums/%s/%s/%s-%s.%s"
+                        .formatted(
+                                LocalDate.now(),
+                                userId,
+                                System.currentTimeMillis(),
+                                UUID.randomUUID().toString().substring(0, 8),
+                                ext);
+
+        Path root = resolveRootDir();
+        Path target = root.resolve(objectKey).normalize();
+        try {
+            Files.createDirectories(target.getParent());
+            Files.move(localFile, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            try {
+                Files.copy(localFile, target, StandardCopyOption.REPLACE_EXISTING);
+                Files.deleteIfExists(localFile);
+            } catch (IOException e2) {
+                e2.addSuppressed(e);
+                throw new IllegalStateException("move album file to local storage failed", e2);
+            }
+        }
+
+        log.info(
+                "local album file from path userId={} absolutePath={} size={}",
+                userId,
+                target,
+                safeSize(target));
+
+        String base = props.publicBaseUrl();
+        if (base == null || base.isBlank()) {
+            return "/local-files/" + objectKey;
+        }
+        return trimRightSlash(base) + "/" + objectKey;
+    }
+
     private static long safeSize(Path p) {
         try {
             return Files.size(p);
