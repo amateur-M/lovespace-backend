@@ -5,7 +5,7 @@ import com.meng.lovespace.user.dto.LoveRecordCreateRequest;
 import com.meng.lovespace.user.dto.LoveRecordPageResponse;
 import com.meng.lovespace.user.dto.LoveRecordResponse;
 import com.meng.lovespace.user.dto.LoveRecordUpdateRequest;
-import com.meng.lovespace.user.config.AvatarUploadProperties;
+import com.meng.lovespace.user.config.TimelineUploadProperties;
 import com.meng.lovespace.user.oss.AvatarStorageService;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
 import com.meng.lovespace.user.service.LoveRecordService;
@@ -43,56 +43,74 @@ public class TimelineController {
 
     private final LoveRecordService loveRecordService;
     private final AvatarStorageService avatarStorageService;
-    private final AvatarUploadProperties avatarUploadProperties;
+    private final TimelineUploadProperties timelineUploadProperties;
 
     /**
      * @param loveRecordService 时间轴领域服务
-     * @param avatarStorageService 对象存储（时间轴图与头像共用策略）
-     * @param avatarUploadProperties 上传大小与扩展名校验（与头像一致）
+     * @param avatarStorageService 对象存储（时间轴媒体与头像共用策略）
+     * @param timelineUploadProperties 时间轴图片/视频分档大小与扩展名校验
      */
     public TimelineController(
             LoveRecordService loveRecordService,
             AvatarStorageService avatarStorageService,
-            AvatarUploadProperties avatarUploadProperties) {
+            TimelineUploadProperties timelineUploadProperties) {
         this.loveRecordService = loveRecordService;
         this.avatarStorageService = avatarStorageService;
-        this.avatarUploadProperties = avatarUploadProperties;
+        this.timelineUploadProperties = timelineUploadProperties;
     }
 
     /**
-     * 上传时间轴配图（与头像相同的类型/大小限制），返回可写入 {@code images_json} 的 URL。
+     * 上传时间轴配图或短视频，返回可写入 {@code images_json} 的 URL（与图片共用 JSON 数组字段）。
      */
     @PostMapping("/upload")
-    public ApiResponse<String> uploadTimelineImage(
+    public ApiResponse<String> uploadTimelineMedia(
             Authentication auth, @RequestPart("file") MultipartFile file) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         if (file == null || file.isEmpty()) {
             log.warn("timeline.upload rejected userId={} reason=empty", p.userId());
             return ApiResponse.error(40010, "file is required");
         }
-        if (file.getSize() > avatarUploadProperties.maxSizeBytes()) {
-            log.warn(
-                    "timeline.upload rejected userId={} reason=too_large size={} maxBytes={}",
-                    p.userId(),
-                    file.getSize(),
-                    avatarUploadProperties.maxSizeBytes());
-            return ApiResponse.error(
-                    40011,
-                    "image too large, max "
-                            + avatarUploadProperties.maxSizeBytes() / 1024 / 1024
-                            + "MB");
-        }
         String ext = extensionOf(file.getOriginalFilename());
-        java.util.List<String> allowed = avatarUploadProperties.allowedExtensions();
-        if (allowed == null || allowed.isEmpty()) {
-            allowed = java.util.List.of("jpg", "jpeg", "png", "webp");
+        List<String> imgExt = timelineUploadProperties.imageExtensions();
+        List<String> vidExt = timelineUploadProperties.videoExtensions();
+        if (imgExt == null || imgExt.isEmpty()) {
+            imgExt = List.of("jpg", "jpeg", "png", "webp");
         }
-        if (!allowed.stream().map(String::toLowerCase).toList().contains(ext)) {
-            log.warn("timeline.upload rejected userId={} reason=bad_ext ext={} allowed={}", p.userId(), ext, allowed);
-            return ApiResponse.error(40012, "invalid image type, allowed: " + String.join(",", allowed));
+        if (vidExt == null || vidExt.isEmpty()) {
+            vidExt = List.of("mp4", "webm", "mov");
+        }
+        List<String> imgLower = imgExt.stream().map(String::toLowerCase).toList();
+        List<String> vidLower = vidExt.stream().map(String::toLowerCase).toList();
+
+        boolean isImage = imgLower.contains(ext);
+        boolean isVideo = vidLower.contains(ext);
+        if (!isImage && !isVideo) {
+            log.warn(
+                    "timeline.upload rejected userId={} reason=bad_ext ext={} images={} videos={}",
+                    p.userId(),
+                    ext,
+                    imgLower,
+                    vidLower);
+            return ApiResponse.error(
+                    40012,
+                    "invalid media type, images: "
+                            + String.join(",", imgLower)
+                            + "; videos: "
+                            + String.join(",", vidLower));
+        }
+        long maxBytes = isVideo ? timelineUploadProperties.videoMaxSizeBytes() : timelineUploadProperties.imageMaxSizeBytes();
+        if (file.getSize() > maxBytes) {
+            log.warn(
+                    "timeline.upload rejected userId={} reason=too_large kind={} size={} maxBytes={}",
+                    p.userId(),
+                    isVideo ? "video" : "image",
+                    file.getSize(),
+                    maxBytes);
+            String kind = isVideo ? "video" : "image";
+            return ApiResponse.error(40011, kind + " too large, max " + maxBytes / 1024 / 1024 + "MB");
         }
         String url = avatarStorageService.uploadTimelineImage(p.userId(), file);
-        log.info("timeline.upload userId={} url={}", p.userId(), url);
+        log.info("timeline.upload userId={} kind={} url={}", p.userId(), isVideo ? "video" : "image", url);
         return ApiResponse.ok(url);
     }
 

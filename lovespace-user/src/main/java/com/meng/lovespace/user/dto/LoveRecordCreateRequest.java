@@ -22,4 +22,5 @@ public record LoveRecordCreateRequest(
         String locationJson,
         @NotNull(message = "visibility is required") @Min(1) @Max(2) Integer visibility,
         String tagsJson,
+        /** 图片与视频 URL 的 JSON 数组字符串，写入 {@code love_records.images_json} */
         String imagesJson) {}

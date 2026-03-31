@@ -98,4 +98,15 @@ lovespace:
     # 2MB
     max-size-bytes: 2097152
     allowed-extensions: [ "jpg", "jpeg", "png", "webp" ]
+  timeline-upload:
+    # 时间轴配图：20MB
+    image-max-size-bytes: 20971520
+    # 时间轴视频：默认 100MB（受 Tomcat/网关限制）
+    video-max-size-bytes: 104857600
+    image-extensions: [ "jpg", "jpeg", "png", "webp" ]
+    video-extensions: [ "mp4", "webm", "mov" ]
+    # 分片上传单片大小（末片可能更小）
+    chunk-size-bytes: 5242880
+    # 未完成会话在磁盘上的最长保留时间（小时），超时由定时任务删除
+    pending-session-hours: 48
 
