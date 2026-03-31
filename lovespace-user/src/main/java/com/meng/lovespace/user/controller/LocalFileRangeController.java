@@ -6,6 +6,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.support.ResourceRegion;
 import org.springframework.http.HttpHeaders;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>替代 {@code ResourceHandlerRegistry} 的 file: 映射，保证返回 {@code Accept-Ranges: bytes} 与 {@code 206 Partial Content}。
  */
+@Slf4j
 @RestController
 public class LocalFileRangeController {
 
@@ -44,8 +47,20 @@ public class LocalFileRangeController {
     @GetMapping("/local-files/{*filepath}")
     public ResponseEntity<?> getLocalFile(
             @PathVariable("filepath") String filepath, @RequestHeader HttpHeaders headers) throws IOException {
+
+        log.debug("Requested filepath: " + filepath);
+        // 去除前导斜杠，避免 resolve() 将其视为驱动器相对路径
+        if (filepath.startsWith("/") || filepath.startsWith("\\")) {
+            filepath = filepath.replaceAll("^[/\\\\]+", "");
+        }
+
         Path root = resolveUploadRoot().toAbsolutePath().normalize();
         Path file = root.resolve(filepath).normalize();
+
+        log.debug("Root: " + root);
+        log.debug("Resolved file: " + file);
+        log.debug("Starts with root: " + file.startsWith(root));
+
         if (!file.startsWith(root) || !Files.isRegularFile(file) || !Files.isReadable(file)) {
             return ResponseEntity.notFound().build();
         }
