@@ -12,20 +12,19 @@ logging:
   level:
     root: INFO
     com.meng.lovespace: DEBUG
-    org.springframework.web.servlet.DispatcherServlet: INFO
-    org.springframework.web.filter.CommonsRequestLoggingFilter: INFO
-    org.springframework.security: INFO
+    # org.springframework.web.servlet.DispatcherServlet: INFO
+    # org.springframework.web.filter.CommonsRequestLoggingFilter: INFO
+    # org.springframework.security: INFO
     # MyBatis 相关注入点的日志级别配置
-    com.baomidou.mybatisplus: INFO
+    # com.baomidou.mybatisplus: INFO
     # 开启SQL执行日志（包括SQL语句和执行时间）
     com.meng.lovespace.user.mapper: INFO
     # 可选：开启更详细的MyBatis核心日志
     # org.apache.ibatis: DEBUG
     # org.apache.ibatis.logging: DEBUG
-
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS}||%-5level||[%thread]||%logger{36} - %msg%n"
-    file: "%d{yyyy-MM-dd HH:mm:ss.SSS}||%-5level||[%thread]||%logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 spring:
   application:
