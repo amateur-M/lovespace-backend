@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * 将 {@link TimelineBusinessException} 转为 {@link ApiResponse}，并输出告警日志便于排查。
  */
 @Slf4j
-@RestControllerAdvice(assignableTypes = {TimelineController.class})
+@RestControllerAdvice(assignableTypes = {TimelineController.class, TimelineChunkUploadController.class})
 public class TimelineControllerExceptionHandler {
 
     /**

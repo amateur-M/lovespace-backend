@@ -5,6 +5,8 @@ import com.aliyun.oss.OSSClientBuilder;
 import com.meng.lovespace.user.config.OssProperties;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -93,6 +95,40 @@ public class AliyunOssAvatarStorageService implements AvatarStorageService {
             url = "https://%s.%s/%s".formatted(props.bucket(), stripHttp(props.endpoint()), objectKey);
         }
         log.info("oss timeline image uploaded userId={} objectKey={} url={}", userId, objectKey, url);
+        return url;
+    }
+
+    @Override
+    public String uploadTimelineFromLocalFile(String userId, Path localFile, String originalFilename, String contentType) {
+        validateConfig();
+
+        String ext = getExtension(originalFilename);
+        String objectKey =
+                "timeline/%s/%s/%s-%s.%s"
+                        .formatted(
+                                LocalDate.now(),
+                                userId,
+                                System.currentTimeMillis(),
+                                UUID.randomUUID().toString().substring(0, 8),
+                                ext);
+
+        OSS ossClient =
+                new OSSClientBuilder().build(props.endpoint(), props.accessKeyId(), props.accessKeySecret());
+        try (InputStream in = Files.newInputStream(localFile)) {
+            ossClient.putObject(props.bucket(), objectKey, in);
+        } catch (IOException e) {
+            throw new IllegalStateException("upload timeline file to OSS failed", e);
+        } finally {
+            ossClient.shutdown();
+        }
+
+        String url;
+        if (props.publicBaseUrl() != null && !props.publicBaseUrl().isBlank()) {
+            url = trimRightSlash(props.publicBaseUrl()) + "/" + objectKey;
+        } else {
+            url = "https://%s.%s/%s".formatted(props.bucket(), stripHttp(props.endpoint()), objectKey);
+        }
+        log.info("oss timeline file from path userId={} objectKey={} url={}", userId, objectKey, url);
         return url;
     }
 

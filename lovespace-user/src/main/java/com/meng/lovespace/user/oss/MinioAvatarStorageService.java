@@ -6,6 +6,8 @@ import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -92,6 +94,48 @@ public class MinioAvatarStorageService implements AvatarStorageService {
         String url = buildUrl(objectKey);
         log.info("MinIO timeline image uploaded userId={} objectKey={} url={}", userId, objectKey, url);
         return url;
+    }
+
+    @Override
+    public String uploadTimelineFromLocalFile(String userId, Path localFile, String originalFilename, String contentType) {
+        validateConfig();
+        ensureBucketExists();
+
+        String ext = getExtension(originalFilename);
+        String objectKey = "timeline/%s/%s/%s-%s.%s".formatted(
+                LocalDate.now(),
+                userId,
+                System.currentTimeMillis(),
+                UUID.randomUUID().toString().substring(0, 8),
+                ext);
+
+        String ct = contentType == null || contentType.isBlank() ? guessContentType(originalFilename) : contentType;
+        long size;
+        try {
+            size = Files.size(localFile);
+        } catch (Exception e) {
+            throw new IllegalStateException("read timeline temp file size failed", e);
+        }
+
+        try (InputStream in = Files.newInputStream(localFile)) {
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(props.bucket())
+                    .object(objectKey)
+                    .stream(in, size, -1)
+                    .contentType(ct)
+                    .build());
+        } catch (Exception e) {
+            throw new IllegalStateException("upload timeline file to MinIO failed", e);
+        }
+
+        String url = buildUrl(objectKey);
+        log.info("MinIO timeline file from path userId={} objectKey={} url={}", userId, objectKey, url);
+        return url;
+    }
+
+    private static String guessContentType(String name) {
+        String g = java.net.URLConnection.guessContentTypeFromName(name);
+        return g != null ? g : "application/octet-stream";
     }
 
     @Override

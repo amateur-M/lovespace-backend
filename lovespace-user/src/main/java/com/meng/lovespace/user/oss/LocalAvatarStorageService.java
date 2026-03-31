@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.util.UUID;
 import org.slf4j.Logger;
@@ -97,6 +98,54 @@ public class LocalAvatarStorageService implements AvatarStorageService {
             return "/local-files/" + objectKey;
         }
         return trimRightSlash(base) + "/" + objectKey;
+    }
+
+    @Override
+    public String uploadTimelineFromLocalFile(String userId, Path localFile, String originalFilename, String contentType) {
+        String ext = getExtension(originalFilename);
+        String objectKey =
+                "timeline/%s/%s/%s-%s.%s"
+                        .formatted(
+                                LocalDate.now(),
+                                userId,
+                                System.currentTimeMillis(),
+                                UUID.randomUUID().toString().substring(0, 8),
+                                ext);
+
+        Path root = resolveRootDir();
+        Path target = root.resolve(objectKey).normalize();
+        try {
+            Files.createDirectories(target.getParent());
+            Files.move(localFile, target, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            try {
+                Files.copy(localFile, target, StandardCopyOption.REPLACE_EXISTING);
+                Files.deleteIfExists(localFile);
+            } catch (IOException e2) {
+                e2.addSuppressed(e);
+                throw new IllegalStateException("move timeline file to local storage failed", e2);
+            }
+        }
+
+        log.info(
+                "local timeline file from path userId={} absolutePath={} size={}",
+                userId,
+                target,
+                safeSize(target));
+
+        String base = props.publicBaseUrl();
+        if (base == null || base.isBlank()) {
+            return "/local-files/" + objectKey;
+        }
+        return trimRightSlash(base) + "/" + objectKey;
+    }
+
+    private static long safeSize(Path p) {
+        try {
+            return Files.size(p);
+        } catch (IOException e) {
+            return -1L;
+        }
     }
 
     @Override
