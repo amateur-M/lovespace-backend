@@ -13,6 +13,7 @@ import com.meng.lovespace.user.entity.Photo;
 import com.meng.lovespace.user.exception.AlbumBusinessException;
 import com.meng.lovespace.user.mapper.AlbumMapper;
 import com.meng.lovespace.user.mapper.PhotoMapper;
+import com.meng.lovespace.user.oss.AvatarStorageService;
 import com.meng.lovespace.user.service.AlbumService;
 import com.meng.lovespace.user.service.CoupleBindingService;
 import com.meng.lovespace.user.upload.AlbumImageUrlValidator;
@@ -35,7 +36,7 @@ public class AlbumServiceImpl extends ServiceImpl<AlbumMapper, Album> implements
 
     private final CoupleBindingService coupleBindingService;
     private final PhotoMapper photoMapper;
-    private final com.meng.lovespace.user.oss.AvatarStorageService avatarStorageService;
+    private final AvatarStorageService avatarStorageService;
 
     public AlbumServiceImpl(
             CoupleBindingService coupleBindingService,

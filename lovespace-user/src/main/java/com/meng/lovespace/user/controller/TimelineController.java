@@ -1,7 +1,11 @@
 package com.meng.lovespace.user.controller;
 
 import com.meng.lovespace.common.web.ApiResponse;
+import com.meng.lovespace.user.dto.LoveRecordCommentCreateRequest;
+import com.meng.lovespace.user.dto.LoveRecordCommentPageResponse;
+import com.meng.lovespace.user.dto.LoveRecordCommentResponse;
 import com.meng.lovespace.user.dto.LoveRecordCreateRequest;
+import com.meng.lovespace.user.dto.LoveRecordLikeStateResponse;
 import com.meng.lovespace.user.dto.LoveRecordPageResponse;
 import com.meng.lovespace.user.dto.LoveRecordResponse;
 import com.meng.lovespace.user.dto.LoveRecordUpdateRequest;
@@ -9,6 +13,7 @@ import com.meng.lovespace.user.config.TimelineUploadProperties;
 import com.meng.lovespace.user.oss.AvatarStorageService;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
 import com.meng.lovespace.user.service.LoveRecordService;
+import com.meng.lovespace.user.service.LoveRecordSocialService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -42,19 +47,23 @@ import org.springframework.web.multipart.MultipartFile;
 public class TimelineController {
 
     private final LoveRecordService loveRecordService;
+    private final LoveRecordSocialService loveRecordSocialService;
     private final AvatarStorageService avatarStorageService;
     private final TimelineUploadProperties timelineUploadProperties;
 
     /**
      * @param loveRecordService 时间轴领域服务
+     * @param loveRecordSocialService 点赞与评论
      * @param avatarStorageService 对象存储（时间轴媒体与头像共用策略）
      * @param timelineUploadProperties 时间轴图片/视频分档大小与扩展名校验
      */
     public TimelineController(
             LoveRecordService loveRecordService,
+            LoveRecordSocialService loveRecordSocialService,
             AvatarStorageService avatarStorageService,
             TimelineUploadProperties timelineUploadProperties) {
         this.loveRecordService = loveRecordService;
+        this.loveRecordSocialService = loveRecordSocialService;
         this.avatarStorageService = avatarStorageService;
         this.timelineUploadProperties = timelineUploadProperties;
     }
@@ -177,6 +186,47 @@ public class TimelineController {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         log.info("timeline.delete userId={} recordId={}", p.userId(), id);
         loveRecordService.delete(p.userId(), id);
+        return ApiResponse.ok();
+    }
+
+    /** 切换点赞（已赞则取消）。 */
+    @PostMapping("/records/{id}/like")
+    public ApiResponse<LoveRecordLikeStateResponse> toggleLike(Authentication auth, @PathVariable("id") String id) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug("timeline.like userId={} recordId={}", p.userId(), id);
+        return ApiResponse.ok(loveRecordSocialService.toggleLike(p.userId(), id));
+    }
+
+    /** 分页查询评论（时间正序）。 */
+    @GetMapping("/records/{id}/comments")
+    public ApiResponse<LoveRecordCommentPageResponse> listComments(
+            Authentication auth,
+            @PathVariable("id") String id,
+            @RequestParam(value = "page", defaultValue = "1") @Min(1) long page,
+            @RequestParam(value = "pageSize", defaultValue = "20") @Min(1) @Max(50) long pageSize) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.debug("timeline.comments userId={} recordId={} page={}", p.userId(), id, page);
+        return ApiResponse.ok(loveRecordSocialService.pageComments(p.userId(), id, page, pageSize));
+    }
+
+    /** 发表评论。 */
+    @PostMapping("/records/{id}/comments")
+    public ApiResponse<LoveRecordCommentResponse> addComment(
+            Authentication auth,
+            @PathVariable("id") String id,
+            @Valid @RequestBody LoveRecordCommentCreateRequest req) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.info("timeline.comment userId={} recordId={}", p.userId(), id);
+        return ApiResponse.ok(loveRecordSocialService.addComment(p.userId(), id, req));
+    }
+
+    /** 删除自己的评论。 */
+    @DeleteMapping("/records/{id}/comments/{commentId}")
+    public ApiResponse<Void> deleteComment(
+            Authentication auth, @PathVariable("id") String id, @PathVariable("commentId") long commentId) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.info("timeline.commentDelete userId={} recordId={} commentId={}", p.userId(), id, commentId);
+        loveRecordSocialService.deleteComment(p.userId(), id, commentId);
         return ApiResponse.ok();
     }
 

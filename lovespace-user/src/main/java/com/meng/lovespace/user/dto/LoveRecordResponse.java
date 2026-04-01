@@ -18,4 +18,7 @@ public record LoveRecordResponse(
         String tagsJson,
         String imagesJson,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt) {}
+        LocalDateTime updatedAt,
+        int likeCount,
+        int commentCount,
+        boolean likedByMe) {}

@@ -12,6 +12,7 @@ import com.meng.lovespace.user.exception.TimelineBusinessException;
 import com.meng.lovespace.user.mapper.LoveRecordMapper;
 import com.meng.lovespace.user.service.CoupleBindingService;
 import com.meng.lovespace.user.service.LoveRecordService;
+import com.meng.lovespace.user.service.LoveRecordSocialService;
 import com.meng.lovespace.user.timeline.LoveMood;
 import com.meng.lovespace.user.timeline.LoveRecordVisibility;
 import java.time.LocalDate;
@@ -35,10 +36,16 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
     private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final CoupleBindingService coupleBindingService;
+    private final LoveRecordSocialService loveRecordSocialService;
 
-    /** @param coupleBindingService 用于校验 {@code coupleId} 是否对当前用户有效 */
-    public LoveRecordServiceImpl(CoupleBindingService coupleBindingService) {
+    /**
+     * @param coupleBindingService 用于校验 {@code coupleId} 是否对当前用户有效
+     * @param loveRecordSocialService 点赞/评论统计与互动
+     */
+    public LoveRecordServiceImpl(
+            CoupleBindingService coupleBindingService, LoveRecordSocialService loveRecordSocialService) {
         this.coupleBindingService = coupleBindingService;
+        this.loveRecordSocialService = loveRecordSocialService;
     }
 
     @Override
@@ -70,7 +77,7 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
                 row.getAuthorId(),
                 row.getRecordDate(),
                 row.getMood());
-        return LoveRecordServiceImpl.toResponse(row);
+        return loveRecordSocialService.enrichSingle(userId, row);
     }
 
     @Override
@@ -90,7 +97,7 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
         }
         w.orderByDesc(LoveRecord::getRecordDate).orderByDesc(LoveRecord::getCreatedAt);
         Page<LoveRecord> result = page(p, w);
-        List<LoveRecordResponse> list = result.getRecords().stream().map(LoveRecordServiceImpl::toResponse).toList();
+        List<LoveRecordResponse> list = loveRecordSocialService.enrichWithSocial(userId, result.getRecords());
         log.debug(
                 "loveRecord.page userId={} coupleId={} page={} pageSize={} startDate={} endDate={} total={} returned={}",
                 userId,
@@ -115,7 +122,7 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
             throw new TimelineBusinessException(40352, "forbidden to view this record");
         }
         log.debug("loveRecord.detail id={} viewerId={} coupleId={}", id, userId, row.getCoupleId());
-        return LoveRecordServiceImpl.toResponse(row);
+        return loveRecordSocialService.enrichSingle(userId, row);
     }
 
     @Override
@@ -192,15 +199,15 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
 
         List<LoveRecord> first = list(onThisDay);
         Set<String> seen = new LinkedHashSet<>();
-        List<LoveRecordResponse> out = new ArrayList<>();
+        List<LoveRecord> ordered = new ArrayList<>();
         for (LoveRecord r : first) {
             if (seen.add(r.getId())) {
-                out.add(LoveRecordServiceImpl.toResponse(r));
+                ordered.add(r);
             }
         }
 
-        if (out.size() < cap) {
-            int need = cap - out.size();
+        if (ordered.size() < cap) {
+            int need = cap - ordered.size();
             LambdaQueryWrapper<LoveRecord> more = visibilityQuery(coupleId, userId);
             if (!seen.isEmpty()) {
                 more.notIn(LoveRecord::getId, seen);
@@ -209,14 +216,15 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
             List<LoveRecord> rest = list(more);
             for (LoveRecord r : rest) {
                 if (seen.add(r.getId())) {
-                    out.add(LoveRecordServiceImpl.toResponse(r));
+                    ordered.add(r);
                 }
-                if (out.size() >= cap) {
+                if (ordered.size() >= cap) {
                     break;
                 }
             }
         }
 
+        List<LoveRecordResponse> out = loveRecordSocialService.enrichWithSocial(userId, ordered);
         log.debug("loveRecord.memories userId={} coupleId={} limit={} returned={}", userId, coupleId, cap, out.size());
         return out;
     }
@@ -268,20 +276,4 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
         }
     }
 
-    /** 将持久化实体转为对外 DTO。 */
-    private static LoveRecordResponse toResponse(LoveRecord r) {
-        return new LoveRecordResponse(
-                r.getId(),
-                r.getCoupleId(),
-                r.getAuthorId(),
-                r.getRecordDate(),
-                r.getContent(),
-                r.getMood(),
-                r.getLocationJson(),
-                r.getVisibility(),
-                r.getTagsJson(),
-                r.getImagesJson(),
-                r.getCreatedAt(),
-                r.getUpdatedAt());
-    }
 }
