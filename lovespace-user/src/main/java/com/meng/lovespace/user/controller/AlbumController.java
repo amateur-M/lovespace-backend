@@ -5,9 +5,11 @@ import com.meng.lovespace.user.config.AvatarUploadProperties;
 import com.meng.lovespace.user.dto.AlbumCreateRequest;
 import com.meng.lovespace.user.dto.AlbumPhotoPageResponse;
 import com.meng.lovespace.user.dto.AlbumResponse;
+import com.meng.lovespace.user.dto.AlbumUpdateRequest;
 import com.meng.lovespace.user.dto.PhotoFavoriteRequest;
 import com.meng.lovespace.user.dto.PhotoRegisterFromUrlRequest;
 import com.meng.lovespace.user.dto.PhotoResponse;
+import com.meng.lovespace.user.dto.PhotoUpdateRequest;
 import com.meng.lovespace.user.dto.PhotoUploadRequest;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
 import com.meng.lovespace.user.service.AlbumService;
@@ -73,6 +75,16 @@ public class AlbumController {
         log.debug("album.api.delete userId={} albumId={}", p.userId(), id);
         albumService.deleteAlbum(p.userId(), id);
         return ApiResponse.ok();
+    }
+
+    @PutMapping("/{id}")
+    public ApiResponse<AlbumResponse> updateAlbum(
+            Authentication auth,
+            @PathVariable("id") String id,
+            @Valid @RequestBody AlbumUpdateRequest req) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.info("album.api.update userId={} albumId={}", p.userId(), id);
+        return ApiResponse.ok(albumService.updateAlbum(p.userId(), id, req));
     }
 
     @PostMapping("/{id}/photos")
@@ -142,6 +154,17 @@ public class AlbumController {
         log.debug("album.api.photo.delete userId={} albumId={} photoId={}", p.userId(), albumId, photoId);
         albumService.deletePhoto(p.userId(), albumId, photoId);
         return ApiResponse.ok();
+    }
+
+    @PutMapping("/{albumId}/photos/{photoId}")
+    public ApiResponse<PhotoResponse> updatePhoto(
+            Authentication auth,
+            @PathVariable("albumId") String albumId,
+            @PathVariable("photoId") String photoId,
+            @Valid @RequestBody PhotoUpdateRequest req) {
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        log.info("album.api.photo.update userId={} albumId={} photoId={}", p.userId(), albumId, photoId);
+        return ApiResponse.ok(albumService.updatePhoto(p.userId(), albumId, photoId, req));
     }
 
     @PutMapping("/{albumId}/photos/{photoId}/favorite")

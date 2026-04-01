@@ -6,7 +6,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.meng.lovespace.user.dto.AlbumCreateRequest;
 import com.meng.lovespace.user.dto.AlbumPhotoPageResponse;
 import com.meng.lovespace.user.dto.AlbumResponse;
+import com.meng.lovespace.user.dto.AlbumUpdateRequest;
 import com.meng.lovespace.user.dto.PhotoResponse;
+import com.meng.lovespace.user.dto.PhotoUpdateRequest;
 import com.meng.lovespace.user.dto.PhotoUploadRequest;
 import com.meng.lovespace.user.entity.Album;
 import com.meng.lovespace.user.entity.Photo;
@@ -83,6 +85,24 @@ public class AlbumServiceImpl extends ServiceImpl<AlbumMapper, Album> implements
         photoMapper.delete(photoQuery);
         removeById(albumId);
         log.info("album.deleted id={} operatorId={}", albumId, userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AlbumResponse updateAlbum(String userId, String albumId, AlbumUpdateRequest req) {
+        Album album = getById(albumId);
+        if (album == null) {
+            throw new AlbumBusinessException(40461, "album not found");
+        }
+        assertCoupleMember(userId, album.getCoupleId());
+        String name = req.name() == null ? "" : req.name().trim();
+        if (name.isEmpty()) {
+            throw new AlbumBusinessException(40065, "album name is required");
+        }
+        album.setName(name);
+        updateById(album);
+        log.info("album.updated id={} operatorId={} name={}", albumId, userId, name);
+        return toAlbumResponse(album);
     }
 
     @Override
@@ -223,6 +243,39 @@ public class AlbumServiceImpl extends ServiceImpl<AlbumMapper, Album> implements
                 photoId,
                 userId,
                 favorite);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public PhotoResponse updatePhoto(String userId, String albumId, String photoId, PhotoUpdateRequest req) {
+        Album album = getById(albumId);
+        if (album == null) {
+            throw new AlbumBusinessException(40461, "album not found");
+        }
+        assertCoupleMember(userId, album.getCoupleId());
+        Photo photo = photoMapper.selectById(photoId);
+        if (photo == null || !albumId.equals(photo.getAlbumId())) {
+            throw new AlbumBusinessException(40462, "photo not found");
+        }
+        LocalDate today = LocalDate.now(BUSINESS_ZONE);
+        if (req.takenDate() != null && req.takenDate().isAfter(today)) {
+            throw new AlbumBusinessException(40063, "takenDate cannot be in the future");
+        }
+        photo.setDescription(blankToNull(req.description()));
+        photo.setLocationJson(blankToNull(req.locationJson()));
+        photo.setTakenDate(req.takenDate());
+        photo.setTagsJson(blankToNull(req.tagsJson()));
+        photoMapper.updateById(photo);
+        log.info("album.photo.updated albumId={} photoId={} operatorId={}", albumId, photoId, userId);
+        return toPhotoResponse(photo);
+    }
+
+    private static String blankToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 
     /** 要求 {@code coupleId} 为交往中或冻结态绑定，且 {@code userId} 为成员之一。 */
