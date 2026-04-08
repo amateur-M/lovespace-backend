@@ -29,6 +29,15 @@ logging:
 spring:
   application:
     name: lovespace-user
+  # 禁用 OpenAI 自动配置（项目使用通义千问 DashScope）
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
   servlet:
     multipart:
       # 相册上传不在 Controller 校验大小；框架层放宽到极大值（实际仍受 Tomcat/网关/磁盘限制）
@@ -55,7 +64,7 @@ spring:
   ai:
     model: qwen-turbo
     dashscope:
-      api-key: ${SPRING_AI_DASHSCOPE_API_KEY:}
+      api-key: ${SPRING_AI_DASHSCOPE_API_KEY:aaaaaa}
     openai:
       api-key: ${SPRING_AI_OPENAI_API_KEY:}
       chat:
