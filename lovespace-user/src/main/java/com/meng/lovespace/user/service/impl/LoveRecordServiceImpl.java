@@ -229,6 +229,32 @@ public class LoveRecordServiceImpl extends ServiceImpl<LoveRecordMapper, LoveRec
         return out;
     }
 
+    @Override
+    public List<LoveRecord> listVisibleRecordsInRange(
+            String userId, String coupleId, LocalDate startDate, LocalDate endDate) {
+        assertCoupleMember(userId, coupleId);
+        if (startDate != null && endDate != null && startDate.isAfter(endDate)) {
+            throw new TimelineBusinessException(40054, "startDate must not be after endDate");
+        }
+        LambdaQueryWrapper<LoveRecord> w = visibilityQuery(coupleId, userId);
+        if (startDate != null) {
+            w.ge(LoveRecord::getRecordDate, startDate);
+        }
+        if (endDate != null) {
+            w.le(LoveRecord::getRecordDate, endDate);
+        }
+        w.orderByAsc(LoveRecord::getRecordDate).orderByAsc(LoveRecord::getCreatedAt);
+        List<LoveRecord> rows = list(w);
+        log.debug(
+                "loveRecord.listVisibleInRange userId={} coupleId={} startDate={} endDate={} count={}",
+                userId,
+                coupleId,
+                startDate,
+                endDate,
+                rows.size());
+        return rows;
+    }
+
     /** 校验当前用户是否为该情侣绑定成员且状态为交往/冻结。 */
     private void assertCoupleMember(String userId, String coupleId) {
         coupleBindingService

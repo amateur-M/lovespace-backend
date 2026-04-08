@@ -8,9 +8,11 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * 将 {@link TimelineBusinessException} 转为 {@link ApiResponse}，并输出告警日志便于排查。
+ *
+ * <p>亦覆盖 {@link EmotionAnalysisController}（复用时间轴业务错误码约定）。
  */
 @Slf4j
-@RestControllerAdvice(assignableTypes = {TimelineController.class})
+@RestControllerAdvice(assignableTypes = {TimelineController.class, EmotionAnalysisController.class})
 public class TimelineControllerExceptionHandler {
 
     /**

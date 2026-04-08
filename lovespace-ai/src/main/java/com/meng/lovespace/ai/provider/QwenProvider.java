@@ -36,15 +36,34 @@ public class QwenProvider implements LLMProvider {
 
     @Override
     public String chat(String userMessage) {
+        Message userMsg = Message.builder().role(Role.USER.getValue()).content(userMessage).build();
+        return complete(List.of(userMsg));
+    }
+
+    /**
+     * 使用系统提示词 + 用户内容调用通义千问（适用于结构化输出、情感分析等场景）。
+     *
+     * @param systemPrompt 系统角色说明
+     * @param userContent 用户侧数据或指令
+     * @return 模型完整文本
+     */
+    public String chatWithSystem(String systemPrompt, String userContent) {
+        List<Message> messages =
+                List.of(
+                        Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt).build(),
+                        Message.builder().role(Role.USER.getValue()).content(userContent).build());
+        return complete(messages);
+    }
+
+    private String complete(List<Message> messages) {
         if (!StringUtils.hasText(apiKey)) {
             throw new IllegalStateException("spring.ai.dashscope.api-key 未配置");
         }
-        Message userMsg = Message.builder().role(Role.USER.getValue()).content(userMessage).build();
         GenerationParam param =
                 GenerationParam.builder()
                         .apiKey(apiKey.trim())
                         .model(model)
-                        .messages(List.of(userMsg))
+                        .messages(messages)
                         .resultFormat(GenerationParam.ResultFormat.MESSAGE)
                         .build();
         try {

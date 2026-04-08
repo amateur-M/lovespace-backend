@@ -56,4 +56,13 @@ public interface LoveRecordService extends IService<LoveRecord> {
      * @param limit 条数上限（调用方已限制范围）
      */
     List<LoveRecordResponse> memories(String userId, String coupleId, int limit);
+
+    /**
+     * 列出当前用户在指定情侣下、日期区间内「可见」的原始记录（不按分页截断），用于统计/情感分析等。
+     *
+     * @param startDate 可选，含
+     * @param endDate 可选，含；若均非空则须 {@code startDate <= endDate}
+     */
+    List<LoveRecord> listVisibleRecordsInRange(
+            String userId, String coupleId, LocalDate startDate, LocalDate endDate);
 }
