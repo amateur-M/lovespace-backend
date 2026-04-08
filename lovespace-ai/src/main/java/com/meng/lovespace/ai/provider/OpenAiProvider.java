@@ -1,0 +1,31 @@
+package com.meng.lovespace.ai.provider;
+
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.stereotype.Component;
+
+/**
+ * OpenAI 兼容接口，基于 Spring AI 自动配置的 {@link OpenAiChatModel}。
+ */
+@Component
+@ConditionalOnBean(OpenAiChatModel.class)
+public class OpenAiProvider implements LLMProvider {
+
+    private final ChatClient chatClient;
+
+    public OpenAiProvider(OpenAiChatModel openAiChatModel) {
+        this.chatClient = ChatClient.builder(openAiChatModel).build();
+    }
+
+    @Override
+    public String name() {
+        return "openai";
+    }
+
+    @Override
+    public String chat(String userMessage) {
+        String content = chatClient.prompt().user(userMessage).call().content();
+        return content != null ? content : "";
+    }
+}

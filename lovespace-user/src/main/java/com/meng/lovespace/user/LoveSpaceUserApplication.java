@@ -11,9 +11,9 @@ import org.mybatis.spring.annotation.MapperScan;
  *
  * <p>负责扫描 MyBatis Mapper、加载 {@code com.meng.lovespace.user.config} 下的配置属性类。
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"com.meng.lovespace.user", "com.meng.lovespace.ai"})
 @MapperScan("com.meng.lovespace.user.mapper")
-@ConfigurationPropertiesScan("com.meng.lovespace.user.config")
+@ConfigurationPropertiesScan({"com.meng.lovespace.user.config", "com.meng.lovespace.ai.config"})
 @EnableScheduling
 public class LoveSpaceUserApplication {
 
