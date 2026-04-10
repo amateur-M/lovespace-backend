@@ -1,14 +1,25 @@
 package com.meng.lovespace.user.controller;
 
 import com.meng.lovespace.common.web.ApiResponse;
+import com.meng.lovespace.user.config.LovespaceSessionProperties;
 import com.meng.lovespace.user.dto.LoginRequest;
 import com.meng.lovespace.user.dto.LoginResponse;
 import com.meng.lovespace.user.dto.RegisterRequest;
 import com.meng.lovespace.user.dto.UserResponse;
+import com.meng.lovespace.user.security.JwtUserPrincipal;
 import com.meng.lovespace.user.service.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -26,12 +37,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final LovespaceSessionProperties sessionProperties;
+    private final SecurityContextRepository securityContextRepository =
+            new HttpSessionSecurityContextRepository();
 
     /**
      * @param authService 认证业务服务
+     * @param sessionProperties 是否写入服务端 Session（分布式 Redis）
      */
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, LovespaceSessionProperties sessionProperties) {
         this.authService = authService;
+        this.sessionProperties = sessionProperties;
     }
 
     /**
@@ -60,11 +76,25 @@ public class AuthController {
      * @return token + user；凭证错误返回 40002 等
      */
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest req) {
+    public ApiResponse<LoginResponse> login(
+            @Valid @RequestBody LoginRequest req,
+            HttpServletRequest request,
+            HttpServletResponse response) {
         log.info("auth.login email={}", req.email());
         try {
             LoginResponse resp = authService.login(req);
             log.info("auth.login success userId={}", resp.user().id());
+            if (sessionProperties.getDistributed().isEnabled()) {
+                JwtUserPrincipal principal =
+                        new JwtUserPrincipal(
+                                resp.user().id(), resp.user().username(), resp.user().email());
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(principal, null, List.of());
+                SecurityContext context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(authentication);
+                securityContextRepository.saveContext(context, request, response);
+                log.debug("auth.login session saved userId={}", resp.user().id());
+            }
             return ApiResponse.ok(resp);
         } catch (IllegalArgumentException e) {
             log.warn("auth.login failed email={} reason={}", req.email(), e.getMessage());
@@ -79,12 +109,22 @@ public class AuthController {
      * @return 始终返回成功包装（无 data）
      */
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String auth) {
+    public ApiResponse<Void> logout(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String auth,
+            HttpServletRequest request) {
         if (auth != null && auth.startsWith("Bearer ")) {
             log.info("auth.logout (token present)");
             authService.logout(auth.substring("Bearer ".length()).trim());
         } else {
             log.info("auth.logout (no bearer token)");
+        }
+        if (sessionProperties.getDistributed().isEnabled()) {
+            SecurityContextHolder.clearContext();
+            HttpSession session = request.getSession(false);
+            if (session != null) {
+                session.invalidate();
+                log.debug("auth.logout session invalidated");
+            }
         }
         return ApiResponse.ok();
     }
