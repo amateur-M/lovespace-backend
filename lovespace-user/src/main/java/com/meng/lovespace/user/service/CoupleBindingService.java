@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.meng.lovespace.user.dto.CoupleAcceptRequest;
 import com.meng.lovespace.user.dto.CoupleInfoResponse;
 import com.meng.lovespace.user.dto.CoupleInviteResponse;
+import com.meng.lovespace.user.dto.CouplePendingInviteResponse;
 import com.meng.lovespace.user.entity.CoupleBinding;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -26,6 +28,14 @@ public interface CoupleBindingService extends IService<CoupleBinding> {
      * 被邀请方接受邀请，状态变为交往中，并规范化双方 ID 顺序。
      */
     CoupleInfoResponse accept(String currentUserId, CoupleAcceptRequest request);
+
+    /**
+     * 被邀请方：待处理邀请列表（状态为待接受、且当前用户为被邀请方 {@code user_id2}）。
+     */
+    List<CouplePendingInviteResponse> listPendingInvitesForInvitee(String inviteeUserId);
+
+    /** 被邀请方：待处理邀请条数。 */
+    long countPendingInvitesForInvitee(String inviteeUserId);
 
     /**
      * 查询当前用户进行中的情侣信息（交往或冻结）。

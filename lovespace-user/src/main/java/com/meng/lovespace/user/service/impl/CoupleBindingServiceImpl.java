@@ -6,6 +6,7 @@ import com.meng.lovespace.user.couple.RelationshipDaysCalculator;
 import com.meng.lovespace.user.dto.CoupleAcceptRequest;
 import com.meng.lovespace.user.dto.CoupleInfoResponse;
 import com.meng.lovespace.user.dto.CoupleInviteResponse;
+import com.meng.lovespace.user.dto.CouplePendingInviteResponse;
 import com.meng.lovespace.user.dto.UserResponse;
 import com.meng.lovespace.user.entity.CoupleBinding;
 import com.meng.lovespace.user.entity.User;
@@ -14,6 +15,7 @@ import com.meng.lovespace.user.mapper.CoupleBindingMapper;
 import com.meng.lovespace.user.service.CoupleBindingService;
 import com.meng.lovespace.user.service.UserService;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
@@ -99,6 +101,35 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
         updateById(binding);
 
         return toInfoResponse(binding, currentUserId, today);
+    }
+
+    @Override
+    public List<CouplePendingInviteResponse> listPendingInvitesForInvitee(String inviteeUserId) {
+        List<CoupleBinding> rows =
+                lambdaQuery()
+                        .eq(CoupleBinding::getStatus, CoupleBindingStatus.PENDING)
+                        .eq(CoupleBinding::getUserId2, inviteeUserId)
+                        .orderByDesc(CoupleBinding::getCreatedAt)
+                        .list();
+        return rows.stream()
+                .map(
+                        row -> {
+                            User inviter = userService.getById(row.getUserId1());
+                            if (inviter == null) {
+                                throw new CoupleBindingBusinessException(40405, "inviter user not found");
+                            }
+                            LocalDateTime invitedAt = row.getCreatedAt() != null ? row.getCreatedAt() : LocalDateTime.now();
+                            return new CouplePendingInviteResponse(row.getId(), toUserResponse(inviter), invitedAt);
+                        })
+                .toList();
+    }
+
+    @Override
+    public long countPendingInvitesForInvitee(String inviteeUserId) {
+        return lambdaQuery()
+                .eq(CoupleBinding::getStatus, CoupleBindingStatus.PENDING)
+                .eq(CoupleBinding::getUserId2, inviteeUserId)
+                .count();
     }
 
     @Override

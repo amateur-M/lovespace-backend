@@ -5,12 +5,14 @@ import com.meng.lovespace.user.dto.CoupleAcceptRequest;
 import com.meng.lovespace.user.dto.CoupleInfoResponse;
 import com.meng.lovespace.user.dto.CoupleInviteRequest;
 import com.meng.lovespace.user.dto.CoupleInviteResponse;
+import com.meng.lovespace.user.dto.CouplePendingInviteResponse;
 import com.meng.lovespace.user.dto.CoupleUpdateStartDateRequest;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
 import com.meng.lovespace.user.service.CoupleBindingService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
+import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -58,6 +60,22 @@ public class CoupleController {
         log.info("couple.accept userId={} bindingId={}", p.userId(), req.bindingId());
         CoupleInfoResponse data = coupleBindingService.accept(p.userId(), req);
         return ApiResponse.ok(data);
+    }
+
+    /** 被邀请方：待处理情侣邀请列表（用于「消息」页一键接受）。 */
+    @GetMapping("/pending-invites")
+    public ApiResponse<List<CouplePendingInviteResponse>> pendingInvites(Authentication auth) {
+        JwtUserPrincipal pr = (JwtUserPrincipal) auth.getPrincipal();
+        List<CouplePendingInviteResponse> list = coupleBindingService.listPendingInvitesForInvitee(pr.userId());
+        return ApiResponse.ok(list);
+    }
+
+    /** 被邀请方：待处理邀请条数（顶栏角标）。 */
+    @GetMapping("/pending-invites/count")
+    public ApiResponse<Long> pendingInvitesCount(Authentication auth) {
+        JwtUserPrincipal pr = (JwtUserPrincipal) auth.getPrincipal();
+        long n = coupleBindingService.countPendingInvitesForInvitee(pr.userId());
+        return ApiResponse.ok(n);
     }
 
     /** 获取当前进行中的情侣信息（交往或冻结）。 */
