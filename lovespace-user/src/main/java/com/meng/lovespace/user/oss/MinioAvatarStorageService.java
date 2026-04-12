@@ -230,7 +230,7 @@ public class MinioAvatarStorageService implements AvatarStorageService {
     /** 构建访问 URL。 */
     private String buildUrl(String objectKey) {
         if (props.publicBaseUrl() != null && !props.publicBaseUrl().isBlank()) {
-            return trimRightSlash(props.publicBaseUrl()) + "/" + objectKey;
+            return trimRightSlash(props.publicBaseUrl()) + "/" + props.bucket() + "/" + objectKey;
         }
         // 使用 MinIO endpoint 构建 URL
         String endpoint = stripHttp(props.endpoint());
