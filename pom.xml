@@ -88,6 +88,8 @@
                 <plugin>
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-maven-plugin</artifactId>
+                    <!-- 未使用 spring-boot-starter-parent 时必须在 pluginManagement 中写死版本，否则 repackage 可能不生效 -->
+                    <version>${spring-boot.version}</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>

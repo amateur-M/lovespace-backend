@@ -14,7 +14,7 @@ import org.mybatis.spring.annotation.MapperScan;
 @SpringBootApplication(scanBasePackages = {"com.meng.lovespace.user", "com.meng.lovespace.ai"})
 @MapperScan("com.meng.lovespace.user.mapper")
 @ConfigurationPropertiesScan({"com.meng.lovespace.user.config", "com.meng.lovespace.ai.config"})
-@EnableScheduling
+//@EnableScheduling
 public class LoveSpaceUserApplication {
 
     /**

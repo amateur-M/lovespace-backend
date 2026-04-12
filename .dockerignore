@@ -1,0 +1,6 @@
+# 构建上下文仅包含 Dockerfile、可选 app.jar、target 下单个 fat jar
+*
+!Dockerfile
+!app.jar
+!target
+!target/*.jar
