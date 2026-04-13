@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.meng.lovespace.common.web.ApiResponse;
+import com.meng.lovespace.user.dto.PasswordVerifyRequest;
 import com.meng.lovespace.user.dto.UserCreateRequest;
 import com.meng.lovespace.user.dto.UserResponse;
 import com.meng.lovespace.user.entity.User;
@@ -106,6 +107,28 @@ public class UserController {
         IPage<UserResponse> resp = p.convert(this::toResponse);
         log.debug("users.page total={} currentSize={}", resp.getTotal(), resp.getRecords().size());
         return ApiResponse.ok(resp);
+    }
+
+    /**
+     * 验证用户密码(BCrypt 为单向哈希,无法解密,仅支持验证)。
+     *
+     * @param userId 用户 ID
+     * @param request 包含待验证的明文密码的请求体
+     * @return 验证结果
+     */
+    @PostMapping("/{id}/verify-password")
+    public ApiResponse<Boolean> verifyPassword(
+            @PathVariable("id") String userId,
+            @RequestBody PasswordVerifyRequest request) {
+        log.info("users.verifyPassword userId={}", userId);
+        User user = userService.getById(userId);
+        if (user == null) {
+            log.warn("users.verifyPassword notFound userId={}", userId);
+            return ApiResponse.error(40400, "user not found");
+        }
+        boolean matches = passwordEncoder.matches(request.password(), user.getPasswordHash());
+        log.info("users.verifyPassword userId={} result={}", userId, matches);
+        return ApiResponse.ok(matches);
     }
 
     /**
