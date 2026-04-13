@@ -96,6 +96,12 @@ springdoc:
     path: /swagger-ui.html
 
 lovespace:
+  memorial:
+    # 纪念日 next / upcoming 的 Redis TTL（秒）
+    cache-ttl-seconds: 3600
+    # 「近期」列表：从今天起连续多少天（含今天），默认 7
+    upcoming-window-days: 7
+    zone-id: Asia/Shanghai
   session:
     distributed:
       # 是否启用 Redis 分布式 Session（多实例共享；登录写入 Session Cookie，可与 JWT 并存）。默认 false。
