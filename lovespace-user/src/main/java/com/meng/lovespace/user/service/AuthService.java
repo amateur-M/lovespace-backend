@@ -11,7 +11,7 @@ import com.meng.lovespace.user.dto.UserResponse;
 public interface AuthService {
 
     /**
-     * 注册新用户，用户名与邮箱需唯一。
+     * 注册新用户，手机号与用户名需唯一。
      *
      * @param req 注册参数
      * @return 用户公开信息
@@ -20,7 +20,7 @@ public interface AuthService {
     UserResponse register(RegisterRequest req);
 
     /**
-     * 邮箱密码登录，签发 JWT。
+     * 手机号密码登录，签发 JWT。
      *
      * @param req 登录参数
      * @return token 与用户信息
@@ -35,4 +35,3 @@ public interface AuthService {
      */
     void logout(String token);
 }
-

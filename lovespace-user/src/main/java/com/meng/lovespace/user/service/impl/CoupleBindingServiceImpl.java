@@ -14,6 +14,7 @@ import com.meng.lovespace.user.exception.CoupleBindingBusinessException;
 import com.meng.lovespace.user.mapper.CoupleBindingMapper;
 import com.meng.lovespace.user.service.CoupleBindingService;
 import com.meng.lovespace.user.service.UserService;
+import com.meng.lovespace.user.util.PhoneNormalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -40,13 +41,18 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public CoupleInviteResponse invite(String inviterId, String inviteeUserId) {
+    public CoupleInviteResponse invite(String inviterId, String inviteePhone) {
+        String phone = PhoneNormalizer.normalize(inviteePhone);
+        if (!PhoneNormalizer.isValidCnMobile(phone)) {
+            throw new CoupleBindingBusinessException(40006, "invalid phone number");
+        }
+        User invitee =
+                userService
+                        .findByNormalizedPhone(phone)
+                        .orElseThrow(() -> new CoupleBindingBusinessException(40401, "invitee not found"));
+        String inviteeUserId = invitee.getId();
         if (inviterId.equals(inviteeUserId)) {
             throw new CoupleBindingBusinessException(40002, "cannot invite yourself");
-        }
-        User invitee = userService.getById(inviteeUserId);
-        if (invitee == null) {
-            throw new CoupleBindingBusinessException(40401, "invitee not found");
         }
         if (userHasNonSeparatedBinding(inviterId)) {
             throw new CoupleBindingBusinessException(40901, "you already have a pending or active couple binding");
@@ -217,6 +223,7 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
     private static UserResponse toUserResponse(User u) {
         return new UserResponse(
                 u.getId(),
+                u.getPhone(),
                 u.getUsername(),
                 u.getEmail(),
                 u.getAvatarUrl(),

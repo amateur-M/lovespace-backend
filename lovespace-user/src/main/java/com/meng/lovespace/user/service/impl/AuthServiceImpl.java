@@ -10,6 +10,7 @@ import com.meng.lovespace.user.security.TokenBlacklistService;
 import com.meng.lovespace.user.service.AuthService;
 import com.meng.lovespace.user.service.UserService;
 import com.meng.lovespace.user.util.JwtUtil;
+import com.meng.lovespace.user.util.PhoneNormalizer;
 import java.time.Duration;
 import java.time.Instant;
 import lombok.extern.slf4j.Slf4j;
@@ -48,44 +49,57 @@ public class AuthServiceImpl implements AuthService {
     /** {@inheritDoc} */
     @Override
     public UserResponse register(RegisterRequest req) {
+        String phone = PhoneNormalizer.normalize(req.phone());
+        if (!PhoneNormalizer.isValidCnMobile(phone)) {
+            throw new IllegalArgumentException("invalid phone number");
+        }
+        String uname = req.username().trim();
+        if (uname.isEmpty()) {
+            throw new IllegalArgumentException("username is required");
+        }
         boolean exists =
                 userService.exists(
                         new LambdaQueryWrapper<User>()
-                                .eq(User::getUsername, req.username())
+                                .eq(User::getPhone, phone)
                                 .or()
-                                .eq(User::getEmail, req.email()));
+                                .eq(User::getUsername, uname));
         if (exists) {
-            log.warn("register conflict username={} email={}", req.username(), req.email());
-            throw new IllegalArgumentException("username or email already exists");
+            log.warn("register conflict phone={} username={}", phone, uname);
+            throw new IllegalArgumentException("phone or username already exists");
         }
 
         User u = new User();
-        u.setUsername(req.username());
-        u.setEmail(req.email());
+        u.setPhone(phone);
+        u.setUsername(uname);
+        u.setEmail(null);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
         u.setStatus(1);
         userService.save(u);
-        log.info("register success userId={} username={}", u.getId(), u.getUsername());
+        log.info("register success userId={} phone={}", u.getId(), u.getPhone());
         return toResponse(u);
     }
 
     /** {@inheritDoc} */
     @Override
     public LoginResponse login(LoginRequest req) {
+        String phone = PhoneNormalizer.normalize(req.phone());
+        if (!PhoneNormalizer.isValidCnMobile(phone)) {
+            throw new IllegalArgumentException("invalid phone number");
+        }
         User u =
                 userService.getOne(
-                        new LambdaQueryWrapper<User>().eq(User::getEmail, req.email()), false);
+                        new LambdaQueryWrapper<User>().eq(User::getPhone, phone), false);
         if (u == null || !passwordEncoder.matches(req.password(), u.getPasswordHash())) {
-            log.warn("login failed email={} reason=bad_credentials", req.email());
-            throw new IllegalArgumentException("invalid email or password");
+            log.warn("login failed phone={} reason=bad_credentials", phone);
+            throw new IllegalArgumentException("invalid phone or password");
         }
         if (u.getStatus() != null && u.getStatus() == 0) {
-            log.warn("login failed email={} reason=user_disabled userId={}", req.email(), u.getId());
+            log.warn("login failed phone={} reason=user_disabled userId={}", phone, u.getId());
             throw new IllegalArgumentException("user disabled");
         }
 
-        String token = jwtUtil.generateToken(u.getId(), u.getUsername(), u.getEmail());
-        log.info("login success userId={} email={}", u.getId(), u.getEmail());
+        String token = jwtUtil.generateToken(u.getId(), u.getUsername(), u.getPhone());
+        log.info("login success userId={} phone={}", u.getId(), u.getPhone());
         return new LoginResponse(token, toResponse(u));
     }
 
@@ -107,6 +121,7 @@ public class AuthServiceImpl implements AuthService {
     private UserResponse toResponse(User u) {
         return new UserResponse(
                 u.getId(),
+                u.getPhone(),
                 u.getUsername(),
                 u.getEmail(),
                 u.getAvatarUrl(),
@@ -117,4 +132,3 @@ public class AuthServiceImpl implements AuthService {
                 u.getUpdatedAt());
     }
 }
-

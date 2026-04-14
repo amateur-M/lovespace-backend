@@ -46,8 +46,8 @@ public class CoupleController {
     @PostMapping("/invite")
     public ApiResponse<CoupleInviteResponse> invite(Authentication auth, @Valid @RequestBody CoupleInviteRequest req) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        log.info("couple.invite inviterId={} inviteeId={}", p.userId(), req.inviteeUserId());
-        CoupleInviteResponse data = coupleBindingService.invite(p.userId(), req.inviteeUserId());
+        log.info("couple.invite inviterId={} inviteePhone={}", p.userId(), req.inviteePhone());
+        CoupleInviteResponse data = coupleBindingService.invite(p.userId(), req.inviteePhone());
         return ApiResponse.ok(data);
     }
 

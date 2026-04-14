@@ -26,7 +26,11 @@ public class User {
     @TableField("username")
     private String username;
 
-    /** 邮箱，唯一 */
+    /** 登录手机号，唯一 */
+    @TableField("phone")
+    private String phone;
+
+    /** 邮箱，唯一；可选，在个人资料中维护 */
     @TableField("email")
     private String email;
 

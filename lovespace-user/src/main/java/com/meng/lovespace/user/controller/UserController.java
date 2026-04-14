@@ -9,7 +9,9 @@ import com.meng.lovespace.user.dto.UserCreateRequest;
 import com.meng.lovespace.user.dto.UserResponse;
 import com.meng.lovespace.user.entity.User;
 import com.meng.lovespace.user.service.UserService;
+import com.meng.lovespace.user.util.PhoneNormalizer;
 import jakarta.validation.Valid;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -31,6 +33,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/users")
 public class UserController {
 
+    private static final Pattern EMAIL_PATTERN =
+            Pattern.compile("^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$");
+
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
 
@@ -47,26 +52,37 @@ public class UserController {
     /**
      * 创建用户（管理/种子接口），密码经 BCrypt 写入 {@code password_hash}。
      *
-     * @param req 用户名、邮箱、密码
+     * @param req 手机号、用户名、可选邮箱、密码
      * @return 新建用户信息
      */
     @PostMapping
     public ApiResponse<UserResponse> create(@Valid @RequestBody UserCreateRequest req) {
-        log.info("users.create username={} email={}", req.username(), req.email());
-        boolean exists =
-                userService.exists(
-                        new LambdaQueryWrapper<User>()
-                                .eq(User::getUsername, req.username())
-                                .or()
-                                .eq(User::getEmail, req.email()));
+        String phone = PhoneNormalizer.normalize(req.phone());
+        if (!PhoneNormalizer.isValidCnMobile(phone)) {
+            return ApiResponse.error(40001, "invalid phone number");
+        }
+        String uname = req.username().trim();
+        String email =
+                req.email() != null && !req.email().isBlank() ? req.email().trim() : null;
+        if (email != null && !EMAIL_PATTERN.matcher(email).matches()) {
+            return ApiResponse.error(40001, "invalid email format");
+        }
+        log.info("users.create phone={} username={}", phone, uname);
+        LambdaQueryWrapper<User> conflict = new LambdaQueryWrapper<User>();
+        conflict.eq(User::getUsername, uname).or().eq(User::getPhone, phone);
+        if (email != null) {
+            conflict.or().eq(User::getEmail, email);
+        }
+        boolean exists = userService.exists(conflict);
         if (exists) {
-            log.warn("users.create conflict username={} email={}", req.username(), req.email());
-            return ApiResponse.error(40001, "username or email already exists");
+            log.warn("users.create conflict phone={} username={}", phone, uname);
+            return ApiResponse.error(40001, "username, phone or email already exists");
         }
 
         User u = new User();
-        u.setUsername(req.username());
-        u.setEmail(req.email());
+        u.setPhone(phone);
+        u.setUsername(uname);
+        u.setEmail(email);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
         u.setStatus(1);
         userService.save(u);
@@ -151,6 +167,7 @@ public class UserController {
     private UserResponse toResponse(User u) {
         return new UserResponse(
                 u.getId(),
+                u.getPhone(),
                 u.getUsername(),
                 u.getEmail(),
                 u.getAvatarUrl(),

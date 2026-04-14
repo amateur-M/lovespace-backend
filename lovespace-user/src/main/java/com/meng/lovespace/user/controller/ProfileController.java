@@ -11,6 +11,7 @@ import com.meng.lovespace.user.service.UserService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,6 +32,9 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/user/profile")
 public class ProfileController {
+
+    private static final Pattern EMAIL_PATTERN =
+            Pattern.compile("^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$");
 
     private final UserService userService;
     private final AvatarStorageService avatarStorageService;
@@ -66,7 +70,7 @@ public class ProfileController {
     }
 
     /**
-     * 更新可编辑字段（头像 URL、性别、生日）；未传的字段不修改。
+     * 更新可编辑字段（头像 URL、性别、生日、用户名、邮箱）；未传的字段不修改；邮箱传空串表示清空。
      *
      * @param auth 当前用户
      * @param req 更新请求体
@@ -77,11 +81,13 @@ public class ProfileController {
             Authentication auth, @Valid @RequestBody UpdateProfileRequest req) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         log.info(
-                "profile.update userId={} avatarUrlSet={} genderSet={} birthdaySet={}",
+                "profile.update userId={} avatarUrlSet={} genderSet={} birthdaySet={} usernameSet={} emailSet={}",
                 p.userId(),
                 req.avatarUrl() != null,
                 req.gender() != null,
-                req.birthday() != null);
+                req.birthday() != null,
+                req.username() != null,
+                req.email() != null);
         User u = userService.getById(p.userId());
         if (u == null) {
             log.warn("profile.update user not found userId={}", p.userId());
@@ -91,6 +97,30 @@ public class ProfileController {
         if (req.avatarUrl() != null) u.setAvatarUrl(req.avatarUrl());
         if (req.gender() != null) u.setGender(req.gender());
         if (req.birthday() != null) u.setBirthday(req.birthday());
+
+        if (req.username() != null && !req.username().isBlank()) {
+            String nu = req.username().trim();
+            if (!nu.equals(u.getUsername())) {
+                if (userService.existsUsernameForOtherUser(nu, u.getId())) {
+                    return ApiResponse.error(40001, "username already taken");
+                }
+                u.setUsername(nu);
+            }
+        }
+        if (req.email() != null) {
+            String raw = req.email().trim();
+            if (raw.isEmpty()) {
+                u.setEmail(null);
+            } else {
+                if (!EMAIL_PATTERN.matcher(raw).matches()) {
+                    return ApiResponse.error(40001, "invalid email format");
+                }
+                if (userService.existsEmailForOtherUser(raw, u.getId())) {
+                    return ApiResponse.error(40001, "email already taken");
+                }
+                u.setEmail(raw);
+            }
+        }
 
         userService.updateById(u);
         return ApiResponse.ok(toResponse(u));
@@ -158,6 +188,7 @@ public class ProfileController {
     private UserResponse toResponse(User u) {
         return new UserResponse(
                 u.getId(),
+                u.getPhone(),
                 u.getUsername(),
                 u.getEmail(),
                 u.getAvatarUrl(),

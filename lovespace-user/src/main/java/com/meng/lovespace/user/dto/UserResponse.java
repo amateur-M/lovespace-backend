@@ -7,8 +7,9 @@ import java.time.LocalDateTime;
  * 返回给前端的用户视图（不含密码哈希）。
  *
  * @param id 用户 ID
- * @param username 用户名
- * @param email 邮箱
+ * @param phone 登录手机号
+ * @param username 用户名（展示名，可修改）
+ * @param email 邮箱（可选）
  * @param avatarUrl 头像 URL
  * @param gender 性别
  * @param birthday 生日
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
  */
 public record UserResponse(
         String id,
+        String phone,
         String username,
         String email,
         String avatarUrl,

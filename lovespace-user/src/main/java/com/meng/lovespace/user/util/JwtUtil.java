@@ -26,7 +26,9 @@ public class JwtUtil {
     public static final String CLAIM_UID = "uid";
     /** Claim：用户名 */
     public static final String CLAIM_USERNAME = "username";
-    /** Claim：邮箱 */
+    /** Claim：登录手机号（新签发 token） */
+    public static final String CLAIM_PHONE = "phone";
+    /** Claim：旧版 JWT 曾用于邮箱，现仅用于解析兼容 */
     public static final String CLAIM_EMAIL = "email";
 
     private final JwtProperties props;
@@ -45,10 +47,10 @@ public class JwtUtil {
      *
      * @param userId 用户 ID
      * @param username 用户名
-     * @param email 邮箱
+     * @param phone 登录手机号
      * @return 紧凑序列化的 JWT 字符串
      */
-    public String generateToken(String userId, String username, String email) {
+    public String generateToken(String userId, String username, String phone) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(props.expireSeconds());
 
@@ -59,7 +61,7 @@ public class JwtUtil {
                 .id(jti)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
-                .claims(Map.of(CLAIM_UID, userId, CLAIM_USERNAME, username, CLAIM_EMAIL, email))
+                .claims(Map.of(CLAIM_UID, userId, CLAIM_USERNAME, username, CLAIM_PHONE, phone))
                 .signWith(key, Jwts.SIG.HS256)
                 .compact();
     }
@@ -88,7 +90,16 @@ public class JwtUtil {
         return claims.get(CLAIM_USERNAME, String.class);
     }
 
-    /** 从 Claims 读取邮箱。 */
+    /** 从 Claims 读取登录手机号；新 token 使用 {@link #CLAIM_PHONE}，旧 token 可能仅有 {@link #CLAIM_EMAIL}。 */
+    public String getPhone(Claims claims) {
+        String phone = claims.get(CLAIM_PHONE, String.class);
+        if (phone != null && !phone.isBlank()) {
+            return phone;
+        }
+        return claims.get(CLAIM_EMAIL, String.class);
+    }
+
+    /** 从 Claims 读取邮箱（旧版 JWT 兼容；新 token 可能无此字段）。 */
     public String getEmail(Claims claims) {
         return claims.get(CLAIM_EMAIL, String.class);
     }

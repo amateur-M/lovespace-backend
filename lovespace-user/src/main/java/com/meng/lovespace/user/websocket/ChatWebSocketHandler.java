@@ -77,7 +77,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             }
             JwtUserPrincipal principal =
                     new JwtUserPrincipal(
-                            jwtUtil.getUserId(claims), jwtUtil.getUsername(claims), jwtUtil.getEmail(claims));
+                            jwtUtil.getUserId(claims), jwtUtil.getUsername(claims), jwtUtil.getPhone(claims));
             registry.register(session, principal.userId());
         } catch (Exception e) {
             session.close(CloseStatus.POLICY_VIOLATION);

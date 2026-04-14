@@ -99,7 +99,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new JwtUserPrincipal(
                                 jwtUtil.getUserId(claims),
                                 jwtUtil.getUsername(claims),
-                                jwtUtil.getEmail(claims));
+                                jwtUtil.getPhone(claims));
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(principal, null, List.of());

@@ -16,13 +16,13 @@ import java.util.Optional;
 public interface CoupleBindingService extends IService<CoupleBinding> {
 
     /**
-     * 当前用户向对方发起绑定邀请。
+     * 当前用户向对方发起绑定邀请（按对方手机号查找用户）。
      *
      * @param inviterId 邀请方用户 ID
-     * @param inviteeUserId 被邀请方用户 ID
+     * @param inviteePhone 被邀请方手机号
      * @return 邀请记录 ID
      */
-    CoupleInviteResponse invite(String inviterId, String inviteeUserId);
+    CoupleInviteResponse invite(String inviterId, String inviteePhone);
 
     /**
      * 被邀请方接受邀请，状态变为交往中，并规范化双方 ID 顺序。

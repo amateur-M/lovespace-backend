@@ -53,18 +53,18 @@ public class AuthController {
     /**
      * 用户注册。
      *
-     * @param req 用户名、邮箱、明文密码（传输层建议 HTTPS）
+     * @param req 手机号、用户名、明文密码（传输层建议 HTTPS）
      * @return 注册成功返回用户信息；冲突等返回业务错误码
      */
     @PostMapping("/register")
     public ApiResponse<UserResponse> register(@Valid @RequestBody RegisterRequest req) {
-        log.info("auth.register username={} email={}", req.username(), req.email());
+        log.info("auth.register phone={} username={}", req.phone(), req.username());
         try {
             UserResponse user = authService.register(req);
             log.info("auth.register success userId={}", user.id());
             return ApiResponse.ok(user);
         } catch (IllegalArgumentException e) {
-            log.warn("auth.register failed username={} reason={}", req.username(), e.getMessage());
+            log.warn("auth.register failed phone={} reason={}", req.phone(), e.getMessage());
             return ApiResponse.error(40001, e.getMessage());
         }
     }
@@ -72,7 +72,7 @@ public class AuthController {
     /**
      * 用户登录，返回 JWT 与用户信息。
      *
-     * @param req 邮箱与密码
+     * @param req 手机号与密码
      * @return token + user；凭证错误返回 40002 等
      */
     @PostMapping("/login")
@@ -80,14 +80,14 @@ public class AuthController {
             @Valid @RequestBody LoginRequest req,
             HttpServletRequest request,
             HttpServletResponse response) {
-        log.info("auth.login email={}", req.email());
+        log.info("auth.login phone={}", req.phone());
         try {
             LoginResponse resp = authService.login(req);
             log.info("auth.login success userId={}", resp.user().id());
             if (sessionProperties.getDistributed().isEnabled()) {
                 JwtUserPrincipal principal =
                         new JwtUserPrincipal(
-                                resp.user().id(), resp.user().username(), resp.user().email());
+                                resp.user().id(), resp.user().username(), resp.user().phone());
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(principal, null, List.of());
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
@@ -97,7 +97,7 @@ public class AuthController {
             }
             return ApiResponse.ok(resp);
         } catch (IllegalArgumentException e) {
-            log.warn("auth.login failed email={} reason={}", req.email(), e.getMessage());
+            log.warn("auth.login failed phone={} reason={}", req.phone(), e.getMessage());
             return ApiResponse.error(40002, e.getMessage());
         }
     }
