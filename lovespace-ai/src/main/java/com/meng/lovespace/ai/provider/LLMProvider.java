@@ -17,4 +17,15 @@ public interface LLMProvider {
      * @return 模型回复正文
      */
     String chat(String userMessage);
+
+    /**
+     * 系统提示词 + 用户内容（RAG、结构化 JSON 输出等）。
+     *
+     * @param systemPrompt 系统侧指令或检索上下文说明
+     * @param userContent 用户问题或待处理文本
+     * @return 模型回复正文
+     */
+    default String chatWithSystem(String systemPrompt, String userContent) {
+        throw new UnsupportedOperationException("chatWithSystem not supported for provider: " + name());
+    }
 }

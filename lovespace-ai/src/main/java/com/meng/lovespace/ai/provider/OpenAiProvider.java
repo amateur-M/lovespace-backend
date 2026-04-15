@@ -28,4 +28,11 @@ public class OpenAiProvider implements LLMProvider {
         String content = chatClient.prompt().user(userMessage).call().content();
         return content != null ? content : "";
     }
+
+    @Override
+    public String chatWithSystem(String systemPrompt, String userContent) {
+        String content =
+                chatClient.prompt().system(systemPrompt).user(userContent).call().content();
+        return content != null ? content : "";
+    }
 }

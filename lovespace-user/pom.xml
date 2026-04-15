@@ -127,6 +127,20 @@
         </dependency>
     </dependencies>
 
+    <profiles>
+        <!-- 引入 Milvus + RAG 实现（lovespace-ai-rag）；默认不激活，打包产物不含向量库相关依赖 -->
+        <profile>
+            <id>lovespace-rag</id>
+            <dependencies>
+                <dependency>
+                    <groupId>com.meng.lovespace</groupId>
+                    <artifactId>lovespace-ai-rag</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+
     <build>
         <plugins>
             <plugin>

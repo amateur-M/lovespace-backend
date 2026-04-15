@@ -35,6 +35,7 @@ spring:
       - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      # 保留 OpenAiEmbeddingAutoConfiguration：Milvus RAG 需要 EmbeddingModel（需配置 spring.ai.openai.api-key）
       - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
@@ -72,6 +73,7 @@ spring:
     timeout: 2d
   # Spring AI：OpenAI 使用 spring-ai-starter-model-openai（由 lovespace-ai 引入）
   # 通义千问使用 DashScope 官方 SDK；默认模型名见 spring.ai.model
+  # 以下为 Milvus 向量库配置；仅在 Maven 启用 profile lovespace-rag 且 lovespace.ai.rag.enabled=true 时生效
   ai:
     model: qwen-turbo
     dashscope:
@@ -81,6 +83,17 @@ spring:
       chat:
         options:
           model: gpt-4o-mini
+    vectorstore:
+      milvus:
+        collection-name: love_knowledge_base
+        initialize-schema: false
+        embedding-dimension: 1536
+        index-type: IVF_FLAT
+        metric-type: COSINE
+        database-name: default
+        client:
+          host: ${MILVUS_HOST:localhost}
+          port: ${MILVUS_PORT:19530}
 
 mybatis-plus:
   configuration:
@@ -111,6 +124,21 @@ lovespace:
     # qwen：需 spring.ai.dashscope.api-key；
     # openai：需 spring.ai.openai.api-key
     provider: qwen
+    rag:
+      # 是否启用恋爱知识库 RAG（需 mvn -Plovespace-rag 引入 lovespace-ai-rag，并配置 Milvus 与嵌入）
+      enabled: false
+      chunk-size: 800
+      chunk-overlap: 100
+      retrieve-top-k: 4
+      # 多轮会话：Redis TTL（秒）与最多保留的「问答轮数」（一轮 = 用户 + 助手各一条）
+      conversation-ttl-seconds: 604800
+      max-history-pairs: 10
+    travel:
+      poi-vector-search-enabled: false
+  milvus:
+    # 是否在启动时尝试 ensure 第二集合 travel_poi_embeddings（骨架日志，见 MilvusSchemaService）
+    ensure-travel-poi-schema: false
+    travel-poi-collection-name: travel_poi_embeddings
   jwt:
     # 你可以改成 base64 key；此处先用占位字符串。
     secret: "change-me"

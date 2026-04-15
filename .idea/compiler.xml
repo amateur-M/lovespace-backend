@@ -9,6 +9,7 @@
         <outputRelativeToContentRoot value="true" />
         <module name="lovespace-common" />
         <module name="lovespace-user" />
+        <module name="lovespace-ai-rag" />
         <module name="lovespace-ai" />
       </profile>
     </annotationProcessing>
@@ -16,6 +17,7 @@
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="lovespace-ai" options="-parameters" />
+      <module name="lovespace-ai-rag" options="-parameters" />
       <module name="lovespace-backend" options="-parameters" />
       <module name="lovespace-common" options="-parameters" />
       <module name="lovespace-user" options="-parameters" />

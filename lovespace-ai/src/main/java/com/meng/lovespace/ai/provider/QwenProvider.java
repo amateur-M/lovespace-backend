@@ -47,6 +47,7 @@ public class QwenProvider implements LLMProvider {
      * @param userContent 用户侧数据或指令
      * @return 模型完整文本
      */
+    @Override
     public String chatWithSystem(String systemPrompt, String userContent) {
         List<Message> messages =
                 List.of(
