@@ -18,6 +18,24 @@ public class LovespaceAiProperties {
     /** 情侣旅游规划：POI 向量检索等。 */
     private Travel travel = new Travel();
 
+    /** Milvus RAG 用的文本向量（默认通义 DashScope 嵌入，与 {@code spring.ai.vectorstore.milvus.embedding-dimension} 对齐）。 */
+    private Embedding embedding = new Embedding();
+
+    @Data
+    public static class Embedding {
+        /**
+         * 向量嵌入来源：{@code dashscope}（通义 text-embedding，默认）；若使用 OpenAI 嵌入需改为 {@code openai}
+         * 并取消对 {@code OpenAiEmbeddingAutoConfiguration} 的排除且配置 {@code spring.ai.openai.api-key}。
+         */
+        private String provider = "dashscope";
+
+        /** DashScope 文本嵌入模型，如 {@code text-embedding-v2}。 */
+        private String model = "text-embedding-v2";
+
+        /** 向量维度，须与 {@code spring.ai.vectorstore.milvus.embedding-dimension} 一致。 */
+        private int dimensions = 1536;
+    }
+
     @Data
     public static class Travel {
         /** 是否在规划前尝试用 Milvus 检索 POI 语义片段（需 POI 向量数据入库后才有意义）。 */

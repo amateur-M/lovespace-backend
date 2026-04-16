@@ -35,7 +35,7 @@ spring:
       - org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
-      # 保留 OpenAiEmbeddingAutoConfiguration：Milvus RAG 需要 EmbeddingModel（需配置 spring.ai.openai.api-key）
+      # Milvus RAG 使用通义 DashScope TextEmbedding（lovespace.ai.embedding.provider=dashscope），不启用 OpenAI 嵌入自动配置
       - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
       - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
@@ -87,7 +87,7 @@ spring:
       milvus:
         collection-name: love_knowledge_base
         initialize-schema: false
-        embedding-dimension: 1536
+        embedding-dimension: ${lovespace.ai.embedding.dimensions:1536}
         index-type: IVF_FLAT
         metric-type: COSINE
         database-name: default
@@ -124,6 +124,11 @@ lovespace:
     # qwen：需 spring.ai.dashscope.api-key；
     # openai：需 spring.ai.openai.api-key
     provider: qwen
+    # RAG 向量嵌入（默认通义 text-embedding-v2，与 Milvus embedding-dimension 一致）
+    embedding:
+      provider: dashscope
+      model: text-embedding-v2
+      dimensions: 1536
     rag:
       # 是否启用恋爱知识库 RAG（需 mvn -Plovespace-rag 引入 lovespace-ai-rag，并配置 Milvus 与嵌入）
       enabled: false
