@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -58,6 +59,10 @@ public class LoveQAController {
     @PostMapping("/chat")
     public ApiResponse<LoveQaChatResponseData> chat(Authentication auth, @Valid @RequestBody LoveQaChatRequest request) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        if (StringUtils.hasText(request.conversationId())) {
+            loveQaConversationService.restoreRedisSessionIfMissing(
+                    p.userId(), request.coupleId(), request.conversationId().trim());
+        }
         LoveQaChatParams params =
                 new LoveQaChatParams(
                         p.userId(), request.coupleId(), request.conversationId(), request.message());

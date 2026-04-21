@@ -27,4 +27,10 @@ public interface LoveQaConversationService {
 
     /** 会话下全部消息；会话须属于当前用户。 */
     LoveQaMessagesResponse listMessages(String userId, String conversationId);
+
+    /**
+     * 若 Redis 中无该会话状态但 MySQL 已有历史消息，则从 DB 恢复轮次写入 Redis，供 RAG 多轮记忆使用
+     * （例如 Redis TTL 过期后从历史会话继续聊）。
+     */
+    void restoreRedisSessionIfMissing(String userId, String coupleId, String conversationId);
 }

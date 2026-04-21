@@ -1,6 +1,7 @@
 package com.meng.lovespace.ai.rag;
 
 import com.meng.lovespace.ai.api.LoveQaChatFacade;
+import com.meng.lovespace.ai.dto.ChatTurn;
 import com.meng.lovespace.ai.dto.LoveQaChatParams;
 import com.meng.lovespace.ai.dto.LoveQaChatResult;
 import com.meng.lovespace.ai.exception.LoveQaConversationAccessException;
@@ -76,8 +77,10 @@ public class LoveQAService implements LoveQaChatFacade {
             }
         }
 
-        List<LoveQAConversationTurn> priorTurns = new ArrayList<>(state.getTurns());
-        String historyBlock = formatHistory(priorTurns);
+        if (state.getTurns() == null) {
+            state.setTurns(new ArrayList<>());
+        }
+        List<LoveQAConversationTurn> priorSnapshot = new ArrayList<>(state.getTurns());
 
         int topK = Math.max(1, ragAiProperties.getRetrieveTopK());
         SearchRequest request = SearchRequest.builder().query(message).topK(topK).build();
@@ -89,11 +92,10 @@ public class LoveQAService implements LoveQaChatFacade {
 
         LLMProvider llm = llmRouter.resolve();
         StringBuilder system = new StringBuilder(RAG_SYSTEM_PREFIX);
-        if (!historyBlock.isEmpty()) {
-            system.append("【本轮之前的对话】\n").append(historyBlock).append("\n\n");
-        }
         system.append("【检索到的上下文】\n").append(context);
-        String reply = llm.chatWithSystem(system.toString(), message);
+        List<ChatTurn> priorForLlm =
+                priorSnapshot.stream().map(t -> new ChatTurn(t.role(), t.content())).toList();
+        String reply = llm.chatWithSystemAndHistory(system.toString(), priorForLlm, message);
 
         state.getTurns().add(new LoveQAConversationTurn("user", message));
         state.getTurns().add(new LoveQAConversationTurn("assistant", reply));
@@ -112,18 +114,6 @@ public class LoveQAService implements LoveQaChatFacade {
                 && !state.getCoupleId().equals(coupleId)) {
             throw new LoveQaConversationAccessException("情侣 ID 与会话不一致");
         }
-    }
-
-    private static String formatHistory(List<LoveQAConversationTurn> turns) {
-        if (turns == null || turns.isEmpty()) {
-            return "";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (LoveQAConversationTurn t : turns) {
-            String label = "user".equalsIgnoreCase(t.role()) ? "用户" : "助手";
-            sb.append(label).append(": ").append(t.content()).append("\n");
-        }
-        return sb.toString().trim();
     }
 
     private void trimHistory(LoveQAConversationState state) {

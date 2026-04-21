@@ -5,6 +5,8 @@ import com.alibaba.dashscope.aigc.generation.GenerationParam;
 import com.alibaba.dashscope.aigc.generation.GenerationResult;
 import com.alibaba.dashscope.common.Message;
 import com.alibaba.dashscope.common.Role;
+import com.meng.lovespace.ai.dto.ChatTurn;
+import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +55,33 @@ public class QwenProvider implements LLMProvider {
                 List.of(
                         Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt).build(),
                         Message.builder().role(Role.USER.getValue()).content(userContent).build());
+        return complete(messages);
+    }
+
+    /**
+     * 使用 DashScope 原生多轮 messages，避免把整段对话塞进单条 system 导致模型不遵循上文。
+     */
+    @Override
+    public String chatWithSystemAndHistory(
+            String systemPrompt, List<ChatTurn> priorTurns, String currentUserMessage) {
+        List<Message> messages = new ArrayList<>();
+        if (StringUtils.hasText(systemPrompt)) {
+            messages.add(Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt.trim()).build());
+        }
+        if (priorTurns != null) {
+            for (ChatTurn t : priorTurns) {
+                if (t == null) {
+                    continue;
+                }
+                String body = t.content() != null ? t.content() : "";
+                if ("user".equalsIgnoreCase(t.role())) {
+                    messages.add(Message.builder().role(Role.USER.getValue()).content(body).build());
+                } else {
+                    messages.add(Message.builder().role(Role.ASSISTANT.getValue()).content(body).build());
+                }
+            }
+        }
+        messages.add(Message.builder().role(Role.USER.getValue()).content(currentUserMessage).build());
         return complete(messages);
     }
 
