@@ -1,6 +1,7 @@
 package com.meng.lovespace.ai.rag;
 
 import com.meng.lovespace.ai.api.LoveQaChatFacade;
+import com.meng.lovespace.ai.api.LoveQaStreamCallback;
 import com.meng.lovespace.ai.dto.ChatTurn;
 import com.meng.lovespace.ai.dto.LoveQaChatParams;
 import com.meng.lovespace.ai.dto.LoveQaChatResult;
@@ -51,6 +52,36 @@ public class LoveQAService implements LoveQaChatFacade {
 
     @Override
     public LoveQaChatResult chat(LoveQaChatParams params) {
+        PreparedChat prep = prepareChat(params);
+        LLMProvider llm = llmRouter.resolve();
+        String reply =
+                llm.chatWithSystemAndHistory(prep.systemPrompt(), prep.priorForLlm(), prep.userMessage());
+        persistRound(prep, reply);
+        return new LoveQaChatResult(reply, prep.conversationId());
+    }
+
+    @Override
+    public void chatStream(LoveQaChatParams params, LoveQaStreamCallback callback) {
+        PreparedChat prep = prepareChat(params);
+        callback.onMeta(prep.conversationId());
+        StringBuilder acc = new StringBuilder();
+        LLMProvider llm = llmRouter.resolve();
+        llm.chatWithSystemAndHistoryStreaming(
+                prep.systemPrompt(),
+                prep.priorForLlm(),
+                prep.userMessage(),
+                delta -> {
+                    if (delta != null && !delta.isEmpty()) {
+                        acc.append(delta);
+                        callback.onDelta(delta);
+                    }
+                });
+        String full = acc.toString();
+        persistRound(prep, full);
+        callback.onCompleted(full);
+    }
+
+    private PreparedChat prepareChat(LoveQaChatParams params) {
         String message = params.message();
         String userId = params.userId();
         String coupleId = params.coupleId();
@@ -86,24 +117,29 @@ public class LoveQAService implements LoveQaChatFacade {
         SearchRequest request = SearchRequest.builder().query(message).topK(topK).build();
         List<Document> hits = vectorStore.similaritySearch(request);
         String context =
-                hits.stream()
-                        .map(Document::getText)
-                        .collect(Collectors.joining("\n---\n"));
+                hits.stream().map(Document::getText).collect(Collectors.joining("\n---\n"));
 
-        LLMProvider llm = llmRouter.resolve();
         StringBuilder system = new StringBuilder(RAG_SYSTEM_PREFIX);
         system.append("【检索到的上下文】\n").append(context);
         List<ChatTurn> priorForLlm =
                 priorSnapshot.stream().map(t -> new ChatTurn(t.role(), t.content())).toList();
-        String reply = llm.chatWithSystemAndHistory(system.toString(), priorForLlm, message);
 
-        state.getTurns().add(new LoveQAConversationTurn("user", message));
-        state.getTurns().add(new LoveQAConversationTurn("assistant", reply));
-        trimHistory(state);
-        conversationStore.save(conversationId, state);
-
-        return new LoveQaChatResult(reply, conversationId);
+        return new PreparedChat(conversationId, state, message, system.toString(), priorForLlm);
     }
+
+    private void persistRound(PreparedChat prep, String reply) {
+        prep.state().getTurns().add(new LoveQAConversationTurn("user", prep.userMessage()));
+        prep.state().getTurns().add(new LoveQAConversationTurn("assistant", reply));
+        trimHistory(prep.state());
+        conversationStore.save(prep.conversationId(), prep.state());
+    }
+
+    private record PreparedChat(
+            String conversationId,
+            LoveQAConversationState state,
+            String userMessage,
+            String systemPrompt,
+            List<ChatTurn> priorForLlm) {}
 
     private void verifyAccess(LoveQAConversationState state, String userId, String coupleId) {
         if (state.getUserId() == null || !state.getUserId().equals(userId)) {

@@ -2,6 +2,7 @@ package com.meng.lovespace.ai.provider;
 
 import com.meng.lovespace.ai.dto.ChatTurn;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 大模型调用抽象，便于在通义千问与 OpenAI 等实现之间切换。
@@ -55,5 +56,21 @@ public interface LLMProvider {
             sb.append(label).append(": ").append(text).append("\n");
         }
         return chatWithSystem(sb.toString(), currentUserMessage);
+    }
+
+    /**
+     * 与 {@link #chatWithSystemAndHistory} 等价语义，但以增量形式回调 {@code onDelta}。
+     *
+     * <p>默认实现：一次性回调整段回复。
+     */
+    default void chatWithSystemAndHistoryStreaming(
+            String systemPrompt,
+            List<ChatTurn> priorTurns,
+            String currentUserMessage,
+            Consumer<String> onDelta) {
+        String full = chatWithSystemAndHistory(systemPrompt, priorTurns, currentUserMessage);
+        if (full != null && !full.isEmpty()) {
+            onDelta.accept(full);
+        }
     }
 }

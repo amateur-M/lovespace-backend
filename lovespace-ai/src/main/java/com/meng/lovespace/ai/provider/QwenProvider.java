@@ -6,8 +6,10 @@ import com.alibaba.dashscope.aigc.generation.GenerationResult;
 import com.alibaba.dashscope.common.Message;
 import com.alibaba.dashscope.common.Role;
 import com.meng.lovespace.ai.dto.ChatTurn;
+import io.reactivex.Flowable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,6 +66,45 @@ public class QwenProvider implements LLMProvider {
     @Override
     public String chatWithSystemAndHistory(
             String systemPrompt, List<ChatTurn> priorTurns, String currentUserMessage) {
+        return complete(buildChatMessages(systemPrompt, priorTurns, currentUserMessage));
+    }
+
+    @Override
+    public void chatWithSystemAndHistoryStreaming(
+            String systemPrompt,
+            List<ChatTurn> priorTurns,
+            String currentUserMessage,
+            Consumer<String> onDelta) {
+        List<Message> messages = buildChatMessages(systemPrompt, priorTurns, currentUserMessage);
+        if (!StringUtils.hasText(apiKey)) {
+            throw new IllegalStateException("spring.ai.dashscope.api-key 未配置");
+        }
+        GenerationParam param =
+                GenerationParam.builder()
+                        .apiKey(apiKey.trim())
+                        .model(model)
+                        .messages(messages)
+                        .resultFormat(GenerationParam.ResultFormat.MESSAGE)
+                        .incrementalOutput(true)
+                        .build();
+        try {
+            Generation gen = new Generation();
+            Flowable<GenerationResult> flow = gen.streamCall(param);
+            flow.blockingForEach(
+                    r -> {
+                        String t = extractAssistantContent(r);
+                        if (StringUtils.hasText(t)) {
+                            onDelta.accept(t);
+                        }
+                    });
+        } catch (Exception e) {
+            log.warn("DashScope 流式调用失败: {}", e.toString());
+            throw new RuntimeException("通义千问流式调用失败: " + e.getMessage(), e);
+        }
+    }
+
+    private static List<Message> buildChatMessages(
+            String systemPrompt, List<ChatTurn> priorTurns, String currentUserMessage) {
         List<Message> messages = new ArrayList<>();
         if (StringUtils.hasText(systemPrompt)) {
             messages.add(Message.builder().role(Role.SYSTEM.getValue()).content(systemPrompt.trim()).build());
@@ -82,7 +123,18 @@ public class QwenProvider implements LLMProvider {
             }
         }
         messages.add(Message.builder().role(Role.USER.getValue()).content(currentUserMessage).build());
-        return complete(messages);
+        return messages;
+    }
+
+    private static String extractAssistantContent(GenerationResult result) {
+        if (result == null
+                || result.getOutput() == null
+                || result.getOutput().getChoices() == null
+                || result.getOutput().getChoices().isEmpty()) {
+            return "";
+        }
+        String text = result.getOutput().getChoices().get(0).getMessage().getContent();
+        return text != null ? text : "";
     }
 
     private String complete(List<Message> messages) {
@@ -99,14 +151,11 @@ public class QwenProvider implements LLMProvider {
         try {
             Generation gen = new Generation();
             GenerationResult result = gen.call(param);
-            if (result == null
-                    || result.getOutput() == null
-                    || result.getOutput().getChoices() == null
-                    || result.getOutput().getChoices().isEmpty()) {
+            String text = extractAssistantContent(result);
+            if (!StringUtils.hasText(text)) {
                 throw new IllegalStateException("DashScope 返回为空");
             }
-            String text = result.getOutput().getChoices().get(0).getMessage().getContent();
-            return text != null ? text : "";
+            return text;
         } catch (Exception e) {
             log.warn("DashScope 调用失败: {}", e.toString());
             throw new RuntimeException("通义千问调用失败: " + e.getMessage(), e);

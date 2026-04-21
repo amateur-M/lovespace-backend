@@ -12,4 +12,7 @@ public interface LoveQaChatFacade {
     void ingestDocument(String text, Map<String, Object> metadata);
 
     LoveQaChatResult chat(LoveQaChatParams params);
+
+    /** 流式多轮问答：先回调 {@link LoveQaStreamCallback#onMeta}，再多次 {@link LoveQaStreamCallback#onDelta}，最后 {@link LoveQaStreamCallback#onCompleted}。 */
+    void chatStream(LoveQaChatParams params, LoveQaStreamCallback callback);
 }
