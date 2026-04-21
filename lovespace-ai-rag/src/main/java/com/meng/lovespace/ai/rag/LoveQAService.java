@@ -18,18 +18,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.stereotype.Service;
 
 /**
  * 恋爱知识库 RAG：文档入库与基于检索上下文的问答；支持 Redis 多轮会话记忆。
+ *
+ * <p>由 {@link com.meng.lovespace.ai.rag.config.LoveQaRagBeansConfiguration} 在存在 {@link VectorStore} 时注册。
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "lovespace.ai.rag", name = "enabled", havingValue = "true")
-@ConditionalOnBean(VectorStore.class)
 public class LoveQAService implements LoveQaChatFacade {
 
     private static final String RAG_SYSTEM_PREFIX =

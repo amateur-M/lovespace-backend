@@ -7,20 +7,15 @@ import java.time.Duration;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Service;
 
 /**
  * 恋爱问答多轮会话：Redis 存储 JSON，键 {@code lovespace:love-qa:conv:{conversationId}}。
+ *
+ * <p>由 {@link com.meng.lovespace.ai.rag.config.LoveQaRagBeansConfiguration} 在存在向量存储 Bean 时注册。
  */
 @Slf4j
-@Service
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "lovespace.ai.rag", name = "enabled", havingValue = "true")
-@ConditionalOnBean(VectorStore.class)
 public class LoveQAConversationStore {
 
     private static final String KEY_PREFIX = "lovespace:love-qa:conv:";

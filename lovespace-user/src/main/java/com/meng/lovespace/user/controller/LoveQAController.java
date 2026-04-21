@@ -14,9 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.HashMap;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,12 +28,15 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "AI", description = "恋爱知识库 RAG")
 @RestController
 @RequestMapping("/api/v1/ai/love-qa")
-@RequiredArgsConstructor
-@ConditionalOnBean(LoveQaChatFacade.class)
 public class LoveQAController {
 
     private final LoveQaChatFacade loveQaChatFacade;
     private final LoveQaConversationService loveQaConversationService;
+
+    public LoveQAController(LoveQaChatFacade loveQaChatFacade, LoveQaConversationService loveQaConversationService) {
+        this.loveQaChatFacade = loveQaChatFacade;
+        this.loveQaConversationService = loveQaConversationService;
+    }
 
     @Operation(summary = "知识库文档入库")
     @PostMapping("/ingest")
