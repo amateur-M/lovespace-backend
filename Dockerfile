@@ -1,6 +1,6 @@
 # LoveSpace 后端（多模块工程请在本地执行 Maven 打包后再构建镜像）
 # 推荐：在 lovespace-backend 父目录执行
-#   mvn -pl lovespace-user -am package -DskipTests -Plovespace-rag
+#   mvn -pl lovespace-user -am package -DskipTests
 # 将 lovespace-user/target/lovespace-user-*.jar 复制到本目录 target/（目录内仅保留一个可执行 jar）
 # 或将 fat jar 重命名为 app.jar 放在与本 Dockerfile 同级目录。
 #

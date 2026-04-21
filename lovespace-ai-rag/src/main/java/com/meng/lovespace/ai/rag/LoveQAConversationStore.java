@@ -12,7 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 /**
  * 恋爱问答多轮会话：Redis 存储 JSON，键 {@code lovespace:love-qa:conv:{conversationId}}。
  *
- * <p>由 {@link com.meng.lovespace.ai.rag.config.LoveQaRagBeansConfiguration} 在存在向量存储 Bean 时注册。
+ * <p>由 {@link com.meng.lovespace.ai.rag.config.LoveQaRagBeansConfiguration} 注册为 Spring Bean。
  */
 @Slf4j
 @RequiredArgsConstructor

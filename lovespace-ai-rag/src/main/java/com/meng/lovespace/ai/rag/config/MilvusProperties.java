@@ -12,6 +12,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class MilvusProperties {
 
     /**
+     * 启动时若 {@code spring.ai.vectorstore.milvus.collection-name} 所指集合尚不存在，则按 Spring AI
+     * {@code MilvusVectorStore} 同款结构建表、建索引并 load（避免仅靠 {@code initialize-schema} 时仍出现集合未就绪）。
+     */
+    private boolean ensureLoveKnowledgeSchema = true;
+
+    /**
      * 是否在启动时尝试为 {@link MilvusCollectionNames#TRAVEL_POI_EMBEDDINGS} 执行建表/建索引骨架逻辑。
      */
     private boolean ensureTravelPoiSchema = false;

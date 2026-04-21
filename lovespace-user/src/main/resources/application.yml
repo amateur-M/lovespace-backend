@@ -73,7 +73,7 @@ spring:
     timeout: 2d
   # Spring AI：OpenAI 使用 spring-ai-starter-model-openai（由 lovespace-ai 引入）
   # 通义千问使用 DashScope 官方 SDK；默认模型名见 spring.ai.model
-  # 以下为 Milvus 向量库配置；仅在 Maven 启用 profile lovespace-rag 且 lovespace.ai.rag.enabled=true 时生效
+  # 以下为 Milvus 向量库配置（lovespace-user 默认依赖 lovespace-ai-rag）；需 Milvus 可达且与 DashScope 嵌入维度一致
   ai:
     model: qwen-turbo
     dashscope:
@@ -86,7 +86,7 @@ spring:
     vectorstore:
       milvus:
         collection-name: love_knowledge_base
-        initialize-schema: false
+        initialize-schema: true
         embedding-dimension: ${lovespace.ai.embedding.dimensions:1536}
         index-type: IVF_FLAT
         metric-type: COSINE
@@ -130,8 +130,6 @@ lovespace:
       model: text-embedding-v2
       dimensions: 1536
     rag:
-      # 是否启用恋爱知识库 RAG（需 mvn -Plovespace-rag 引入 lovespace-ai-rag，并配置 Milvus 与嵌入）
-      enabled: false
       chunk-size: 800
       chunk-overlap: 100
       retrieve-top-k: 4
@@ -141,6 +139,8 @@ lovespace:
     travel:
       poi-vector-search-enabled: false
   milvus:
+    # 启动时若恋爱知识库向量集合不存在则创建（与 spring.ai.vectorstore.milvus 一致）；设为 false 则完全自行管理 Milvus 表
+    ensure-love-knowledge-schema: true
     # 是否在启动时尝试 ensure 第二集合 travel_poi_embeddings（骨架日志，见 MilvusSchemaService）
     ensure-travel-poi-schema: false
     travel-poi-collection-name: travel_poi_embeddings

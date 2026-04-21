@@ -4,16 +4,11 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 恋爱问答 RAG：总开关与分片/检索/会话参数（需引入 {@code lovespace-ai-rag} 且 {@code lovespace.ai.rag.enabled=true}）。
+ * 恋爱问答 RAG：分片、检索与多轮会话参数（{@code lovespace.ai.rag.*}，在 Milvus 等 Bean 就绪时生效）。
  */
 @Data
 @ConfigurationProperties(prefix = "lovespace.ai.rag")
 public class RagAiProperties {
-
-    /**
-     * 是否启用 RAG（Milvus + 嵌入 + Redis 会话）。为 false 时通过 EnvironmentPostProcessor 排除 Milvus 自动配置。
-     */
-    private boolean enabled = false;
 
     /** 文本分片目标长度（字符级近似，实现见 {@link com.meng.lovespace.ai.rag.DocumentIngestPipeline}）。 */
     private int chunkSize = 800;

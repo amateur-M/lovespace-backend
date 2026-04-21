@@ -10,10 +10,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 /**
- * 恋爱知识库 RAG 启用时注册 DashScope {@link EmbeddingModel}，与通义千问共用 {@code spring.ai.dashscope.api-key}。
+ * 在选用 DashScope 文本嵌入时注册 {@link EmbeddingModel}，与通义千问共用 {@code spring.ai.dashscope.api-key}（Milvus 向量入库与检索依赖）。
  */
 @Configuration
-@ConditionalOnProperty(prefix = "lovespace.ai.rag", name = "enabled", havingValue = "true")
 public class DashScopeEmbeddingConfiguration {
 
     @Bean
@@ -23,7 +22,7 @@ public class DashScopeEmbeddingConfiguration {
             LovespaceAiProperties lovespaceAiProperties,
             @Value("${spring.ai.dashscope.api-key:}") String apiKey) {
         if (!StringUtils.hasText(apiKey)) {
-            throw new IllegalStateException("启用 RAG 且使用 DashScope 嵌入时，请配置 spring.ai.dashscope.api-key");
+            throw new IllegalStateException("使用 DashScope 文本嵌入时，请配置 spring.ai.dashscope.api-key");
         }
         LovespaceAiProperties.Embedding e = lovespaceAiProperties.getEmbedding();
         return new DashScopeEmbeddingModel(apiKey.trim(), e.getModel(), e.getDimensions());

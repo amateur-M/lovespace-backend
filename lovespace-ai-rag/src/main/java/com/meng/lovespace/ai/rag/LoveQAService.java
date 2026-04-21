@@ -22,7 +22,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 /**
  * 恋爱知识库 RAG：文档入库与基于检索上下文的问答；支持 Redis 多轮会话记忆。
  *
- * <p>由 {@link com.meng.lovespace.ai.rag.config.LoveQaRagBeansConfiguration} 在存在 {@link VectorStore} 时注册。
+ * <p>由 {@link com.meng.lovespace.ai.rag.config.LoveQaRagBeansConfiguration} 注册为 Spring Bean。
  */
 @Slf4j
 @RequiredArgsConstructor

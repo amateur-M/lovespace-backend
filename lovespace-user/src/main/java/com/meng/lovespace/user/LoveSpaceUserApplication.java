@@ -1,12 +1,9 @@
 package com.meng.lovespace.user;
 
-import com.meng.lovespace.user.controller.LoveQAController;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.FilterType;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringBootConfiguration;
 
@@ -17,10 +14,7 @@ import org.springframework.boot.SpringBootConfiguration;
  */
 @SpringBootConfiguration
 @EnableAutoConfiguration
-@ComponentScan(
-        basePackages = {"com.meng.lovespace.user", "com.meng.lovespace.ai"},
-        excludeFilters =
-                @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = LoveQAController.class))
+@ComponentScan(basePackages = {"com.meng.lovespace.user", "com.meng.lovespace.ai"})
 @MapperScan("com.meng.lovespace.user.mapper")
 @ConfigurationPropertiesScan({"com.meng.lovespace.user.config", "com.meng.lovespace.ai.config"})
 //@EnableScheduling
@@ -35,4 +29,3 @@ public class LoveSpaceUserApplication {
         SpringApplication.run(LoveSpaceUserApplication.class, args);
     }
 }
-
