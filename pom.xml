@@ -14,7 +14,6 @@
     <modules>
         <module>lovespace-common</module>
         <module>lovespace-ai</module>
-        <module>lovespace-ai-rag</module>
         <module>lovespace-user</module>
         <!-- <module>lovespace-gateway</module> -->
     </modules>

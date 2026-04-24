@@ -14,7 +14,7 @@
     <artifactId>lovespace-ai</artifactId>
     <name>lovespace-ai</name>
     <packaging>jar</packaging>
-    <description>LLM 抽象与 Spring AI 集成（OpenAI / 通义千问 DashScope）</description>
+    <description>LLM 与 Spring AI（OpenAI / DashScope）；恋爱 RAG（Milvus、Redis 多轮会话）同模块</description>
 
     <dependencies>
         <dependency>
@@ -54,6 +54,16 @@
                     <artifactId>slf4j-simple</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-vector-store-milvus</artifactId>
         </dependency>
 
         <dependency>

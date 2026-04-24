@@ -26,11 +26,6 @@
             <artifactId>lovespace-ai</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.meng.lovespace</groupId>
-            <artifactId>lovespace-ai-rag</artifactId>
-            <version>${project.version}</version>
-        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -73,7 +73,7 @@ spring:
     timeout: 2d
   # Spring AI：OpenAI 使用 spring-ai-starter-model-openai（由 lovespace-ai 引入）
   # 通义千问使用 DashScope 官方 SDK；默认模型名见 spring.ai.model
-  # 以下为 Milvus 向量库配置（lovespace-user 默认依赖 lovespace-ai-rag）；需 Milvus 可达且与 DashScope 嵌入维度一致
+  # 以下为 Milvus 向量库配置（lovespace-user 依赖 lovespace-ai，内含 RAG）；需 Milvus 可达且与 DashScope 嵌入维度一致
   ai:
     model: qwen-turbo
     dashscope:
