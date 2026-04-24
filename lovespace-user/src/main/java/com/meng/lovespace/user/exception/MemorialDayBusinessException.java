@@ -1,18 +1,14 @@
 package com.meng.lovespace.user.exception;
 
-/**
- * 纪念日业务异常，由 {@link com.meng.lovespace.user.controller.MemorialDayControllerExceptionHandler} 转换。
- */
-public class MemorialDayBusinessException extends RuntimeException {
+import com.meng.lovespace.common.exception.ApiBusinessException;
+import com.meng.lovespace.user.controller.UserGlobalExceptionHandler;
 
-    private final int code;
+/**
+ * 纪念日业务异常，由 {@link UserGlobalExceptionHandler} 转换。
+ */
+public class MemorialDayBusinessException extends ApiBusinessException {
 
     public MemorialDayBusinessException(int code, String message) {
-        super(message);
-        this.code = code;
-    }
-
-    public int getCode() {
-        return code;
+        super(code, message);
     }
 }

@@ -1,18 +1,14 @@
 package com.meng.lovespace.user.exception;
 
-/**
- * 情书生成等业务异常。
- */
-public class LoveLetterBusinessException extends RuntimeException {
+import com.meng.lovespace.common.exception.ApiBusinessException;
+import com.meng.lovespace.user.controller.UserGlobalExceptionHandler;
 
-    private final int code;
+/**
+ * 情书生成等业务异常，由 {@link UserGlobalExceptionHandler} 转换。
+ */
+public class LoveLetterBusinessException extends ApiBusinessException {
 
     public LoveLetterBusinessException(int code, String message) {
-        super(message);
-        this.code = code;
-    }
-
-    public int getCode() {
-        return code;
+        super(code, message);
     }
 }

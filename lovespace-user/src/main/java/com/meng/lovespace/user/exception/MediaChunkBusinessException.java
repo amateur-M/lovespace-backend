@@ -1,18 +1,14 @@
 package com.meng.lovespace.user.exception;
 
-/**
- * 公共分片上传业务异常，由 {@link com.meng.lovespace.user.controller.MediaChunkExceptionHandler} 处理。
- */
-public class MediaChunkBusinessException extends RuntimeException {
+import com.meng.lovespace.common.exception.ApiBusinessException;
+import com.meng.lovespace.user.controller.UserGlobalExceptionHandler;
 
-    private final int code;
+/**
+ * 公共分片上传业务异常，由 {@link UserGlobalExceptionHandler} 处理。
+ */
+public class MediaChunkBusinessException extends ApiBusinessException {
 
     public MediaChunkBusinessException(int code, String message) {
-        super(message);
-        this.code = code;
-    }
-
-    public int getCode() {
-        return code;
+        super(code, message);
     }
 }

@@ -1,18 +1,14 @@
 package com.meng.lovespace.user.exception;
 
-/**
- * 共同计划业务异常，由 {@link com.meng.lovespace.user.controller.PlanControllerExceptionHandler} 转为统一响应。
- */
-public class PlanBusinessException extends RuntimeException {
+import com.meng.lovespace.common.exception.ApiBusinessException;
+import com.meng.lovespace.user.controller.UserGlobalExceptionHandler;
 
-    private final int code;
+/**
+ * 共同计划业务异常，由 {@link UserGlobalExceptionHandler} 转为统一响应。
+ */
+public class PlanBusinessException extends ApiBusinessException {
 
     public PlanBusinessException(int code, String message) {
-        super(message);
-        this.code = code;
-    }
-
-    public int getCode() {
-        return code;
+        super(code, message);
     }
 }

@@ -1,18 +1,14 @@
 package com.meng.lovespace.user.exception;
 
-/**
- * 私密消息业务异常，由 {@link com.meng.lovespace.user.controller.MessageControllerExceptionHandler} 统一转换。
- */
-public class MessageBusinessException extends RuntimeException {
+import com.meng.lovespace.common.exception.ApiBusinessException;
+import com.meng.lovespace.user.controller.UserGlobalExceptionHandler;
 
-    private final int code;
+/**
+ * 私密消息业务异常，由 {@link UserGlobalExceptionHandler} 统一转换。
+ */
+public class MessageBusinessException extends ApiBusinessException {
 
     public MessageBusinessException(int code, String message) {
-        super(message);
-        this.code = code;
-    }
-
-    public int getCode() {
-        return code;
+        super(code, message);
     }
 }
