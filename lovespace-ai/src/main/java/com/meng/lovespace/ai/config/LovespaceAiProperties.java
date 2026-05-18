@@ -34,6 +34,24 @@ public class LovespaceAiProperties {
 
         /** 向量维度，须与 {@code spring.ai.vectorstore.milvus.embedding-dimension} 一致。 */
         private int dimensions = 1536;
+
+        /** 向量嵌入缓存配置（用于降低 Embedding API 调用成本与延迟）。 */
+        private Cache cache = new Cache();
+    }
+
+    @Data
+    public static class Cache {
+        /** 是否启用 embedding 缓存，默认 true。 */
+        private boolean enabled = true;
+
+        /** 缓存 TTL（秒），默认 24 小时。 */
+        private long ttlSeconds = 86400L;
+
+        /** 标准化后的最大 query 长度，超过则截断，默认 500 字符。 */
+        private int maxQueryLength = 500;
+
+        /** Redis key 前缀（版本化，便于迁移），默认 lovespace:embedding:v1。 */
+        private String keyPrefix = "lovespace:embedding:v1";
     }
 
     @Data

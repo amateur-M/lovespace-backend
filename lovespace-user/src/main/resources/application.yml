@@ -129,6 +129,12 @@ lovespace:
       provider: dashscope
       model: text-embedding-v2
       dimensions: 1536
+      # 向量嵌入缓存：降低 Embedding API 调用成本与延迟
+      cache:
+        enabled: true           # 总开关，默认启用
+        ttl-seconds: 86400      # 缓存 TTL（秒），默认 24 小时
+        max-query-length: 500   # 标准化后的最大 query 长度，超过则截断
+        key-prefix: "lovespace:embedding:v1"  # Redis key 前缀（版本化，便于迁移）
     rag:
       chunk-size: 800
       chunk-overlap: 100
