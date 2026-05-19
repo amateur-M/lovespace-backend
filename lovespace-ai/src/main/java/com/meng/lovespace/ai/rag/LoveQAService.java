@@ -5,10 +5,15 @@ import com.meng.lovespace.ai.api.LoveQaStreamCallback;
 import com.meng.lovespace.ai.dto.ChatTurn;
 import com.meng.lovespace.ai.dto.LoveQaChatParams;
 import com.meng.lovespace.ai.dto.LoveQaChatResult;
+import com.meng.lovespace.ai.dto.RetrievedChunk;
 import com.meng.lovespace.ai.exception.LoveQaConversationAccessException;
 import com.meng.lovespace.ai.exception.LoveQaConversationNotFoundException;
 import com.meng.lovespace.ai.provider.LLMProvider;
 import com.meng.lovespace.ai.rag.config.RagAiProperties;
+import com.meng.lovespace.ai.rag.compress.PromptCompressor;
+import com.meng.lovespace.ai.rag.metrics.RagMetricsCollector;
+import com.meng.lovespace.ai.rag.metrics.RagPhase;
+import com.meng.lovespace.ai.rag.metrics.RagTimer;
 import com.meng.lovespace.ai.service.LlmRouter;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +43,8 @@ public class LoveQAService implements LoveQaChatFacade {
     private final LlmRouter llmRouter;
     private final RagAiProperties ragAiProperties;
     private final LoveQAConversationStore conversationStore;
+    private final RagMetricsCollector metricsCollector;
+    private final PromptCompressor promptCompressor;
 
     @Override
     public void ingestDocument(String text, Map<String, Object> metadata) {
@@ -52,36 +59,60 @@ public class LoveQAService implements LoveQaChatFacade {
 
     @Override
     public LoveQaChatResult chat(LoveQaChatParams params) {
-        PreparedChat prep = prepareChat(params);
+        RagTimer timer = metricsCollector.startTimer();
+        PreparedChat prep = prepareChat(params, timer);
         LLMProvider llm = llmRouter.resolve();
+
+        timer.phase(RagPhase.LLM_TOTAL);
         String reply =
                 llm.chatWithSystemAndHistory(prep.systemPrompt(), prep.priorForLlm(), prep.userMessage());
-        persistRound(prep, reply);
+        timer.markLlmTotalDone();
+
+        persistRound(prep, reply, timer);
+        metricsCollector.record(timer, prep.conversationId(), 
+                prep.userMessage().length(), prep.retrievedChunkCount());
         return new LoveQaChatResult(reply, prep.conversationId());
     }
 
     @Override
     public void chatStream(LoveQaChatParams params, LoveQaStreamCallback callback) {
-        PreparedChat prep = prepareChat(params);
+        RagTimer timer = metricsCollector.startTimer();
+        PreparedChat prep = prepareChat(params, timer);
         callback.onMeta(prep.conversationId());
+
+        // 发送检索结果供前端可视化
+        if (prep.retrievedChunks() != null && !prep.retrievedChunks().isEmpty()) {
+            callback.onRetrieved(prep.retrievedChunks());
+        }
+
         StringBuilder acc = new StringBuilder();
         LLMProvider llm = llmRouter.resolve();
+
+        timer.phase(RagPhase.LLM_FIRST_BYTE);
         llm.chatWithSystemAndHistoryStreaming(
                 prep.systemPrompt(),
                 prep.priorForLlm(),
                 prep.userMessage(),
                 delta -> {
+                    // 记录首字节时间
+                    if (timer.isFirstBytePending() && delta != null && !delta.isEmpty()) {
+                        timer.markLlmFirstByte();
+                    }
                     if (delta != null && !delta.isEmpty()) {
                         acc.append(delta);
                         callback.onDelta(delta);
                     }
                 });
+        timer.markLlmTotalDone();
+
         String full = acc.toString();
-        persistRound(prep, full);
+        persistRound(prep, full, timer);
         callback.onCompleted(full);
+        metricsCollector.record(timer, prep.conversationId(),
+                prep.userMessage().length(), prep.retrievedChunkCount());
     }
 
-    private PreparedChat prepareChat(LoveQaChatParams params) {
+    private PreparedChat prepareChat(LoveQaChatParams params, RagTimer timer) {
         String message = params.message();
         String userId = params.userId();
         String coupleId = params.coupleId();
@@ -113,25 +144,50 @@ public class LoveQAService implements LoveQaChatFacade {
         }
         List<LoveQAConversationTurn> priorSnapshot = new ArrayList<>(state.getTurns());
 
+        // 向量检索阶段
+        timer.phase(RagPhase.RETRIEVE);
         int topK = Math.max(1, ragAiProperties.getRetrieveTopK());
         SearchRequest request = SearchRequest.builder().query(message).topK(topK).build();
         List<Document> hits = vectorStore.similaritySearch(request);
-        String context =
-                hits.stream().map(Document::getText).collect(Collectors.joining("\n---\n"));
+        timer.markRetrieveDone();
+        int chunkCount = hits.size();
 
-        StringBuilder system = new StringBuilder(RAG_SYSTEM_PREFIX);
-        system.append("【检索到的上下文】\n").append(context);
-        List<ChatTurn> priorForLlm =
+        // Prompt 构建阶段（含压缩）
+        timer.phase(RagPhase.PROMPT_BUILD);
+        
+        // 1. 压缩检索结果
+        List<Document> compressedHits = promptCompressor.compressRetrievedDocs(hits);
+        String context = compressedHits.stream()
+                .map(Document::getText)
+                .collect(Collectors.joining("\n---\n"));
+        
+        // 2. 压缩历史对话
+        List<ChatTurn> priorForLlmRaw =
                 priorSnapshot.stream().map(t -> new ChatTurn(t.role(), t.content())).toList();
+        List<ChatTurn> priorForLlm = promptCompressor.compressHistory(priorForLlmRaw);
+        
+        // 3. 构建系统 Prompt
+        String systemPrompt = promptCompressor.buildSystemPrompt(RAG_SYSTEM_PREFIX, context);
+        
+        timer.markPromptBuildDone();
 
-        return new PreparedChat(conversationId, state, message, system.toString(), priorForLlm);
+        // 构建 RetrievedChunk 列表（用于前端可视化）
+        List<RetrievedChunk> retrievedChunks = compressedHits.stream()
+                .map(doc -> RetrievedChunk.fromDocument(doc, 120))
+                .filter(chunk -> chunk != null)
+                .collect(Collectors.toList());
+
+        return new PreparedChat(conversationId, state, message, systemPrompt, priorForLlm, 
+                compressedHits.size(), retrievedChunks);
     }
 
-    private void persistRound(PreparedChat prep, String reply) {
+    private void persistRound(PreparedChat prep, String reply, RagTimer timer) {
+        timer.phase(RagPhase.PERSIST);
         prep.state().getTurns().add(new LoveQAConversationTurn("user", prep.userMessage()));
         prep.state().getTurns().add(new LoveQAConversationTurn("assistant", reply));
         trimHistory(prep.state());
         conversationStore.save(prep.conversationId(), prep.state());
+        timer.markPersistDone();
     }
 
     private record PreparedChat(
@@ -139,7 +195,9 @@ public class LoveQAService implements LoveQaChatFacade {
             LoveQAConversationState state,
             String userMessage,
             String systemPrompt,
-            List<ChatTurn> priorForLlm) {}
+            List<ChatTurn> priorForLlm,
+            int retrievedChunkCount,
+            List<RetrievedChunk> retrievedChunks) {}
 
     private void verifyAccess(LoveQAConversationState state, String userId, String coupleId) {
         if (state.getUserId() == null || !state.getUserId().equals(userId)) {

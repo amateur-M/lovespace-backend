@@ -8,6 +8,7 @@ import com.meng.lovespace.ai.dto.LoveQaChatRequest;
 import com.meng.lovespace.ai.dto.LoveQaChatResponseData;
 import com.meng.lovespace.ai.dto.LoveQaChatResult;
 import com.meng.lovespace.ai.dto.LoveQaIngestRequest;
+import com.meng.lovespace.ai.dto.RetrievedChunk;
 import com.meng.lovespace.ai.exception.LoveQaConversationAccessException;
 import com.meng.lovespace.ai.exception.LoveQaConversationNotFoundException;
 import com.meng.lovespace.common.web.ApiResponse;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
@@ -126,6 +128,12 @@ public class LoveQAController {
                                                         emitter,
                                                         "meta",
                                                         Map.of("conversationId", conversationId));
+                                            }
+
+                                            @Override
+                                            public void onRetrieved(List<RetrievedChunk> chunks) {
+                                                // 发送检索结果供前端可视化引用来源
+                                                sendSse(emitter, "retrieved", Map.of("chunks", chunks));
                                             }
 
                                             @Override

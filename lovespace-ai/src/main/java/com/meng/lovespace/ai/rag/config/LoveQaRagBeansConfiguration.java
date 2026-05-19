@@ -6,6 +6,8 @@ import com.meng.lovespace.ai.milvus.MilvusSchemaService;
 import com.meng.lovespace.ai.rag.DocumentIngestPipeline;
 import com.meng.lovespace.ai.rag.LoveQAConversationStore;
 import com.meng.lovespace.ai.rag.LoveQAService;
+import com.meng.lovespace.ai.rag.compress.PromptCompressor;
+import com.meng.lovespace.ai.rag.metrics.RagMetricsCollector;
 import com.meng.lovespace.ai.service.LlmRouter;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Bean;
@@ -33,9 +35,17 @@ public class LoveQaRagBeansConfiguration {
             DocumentIngestPipeline documentIngestPipeline,
             LlmRouter llmRouter,
             RagAiProperties ragAiProperties,
-            LoveQAConversationStore loveQAConversationStore) {
+            LoveQAConversationStore loveQAConversationStore,
+            RagMetricsCollector metricsCollector,
+            PromptCompressor promptCompressor) {
         return new LoveQAService(
-                vectorStore, documentIngestPipeline, llmRouter, ragAiProperties, loveQAConversationStore);
+                vectorStore, documentIngestPipeline, llmRouter, ragAiProperties,
+                loveQAConversationStore, metricsCollector, promptCompressor);
+    }
+
+    @Bean
+    public PromptCompressor promptCompressor() {
+        return new PromptCompressor();
     }
 
     @Bean
