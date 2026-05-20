@@ -5,11 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.embedding.AbstractEmbeddingModel;
-import org.springframework.ai.embedding.Embedding;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingRequest;
-import org.springframework.ai.embedding.EmbeddingResponse;
+import org.springframework.ai.embedding.*;
 import org.springframework.util.StringUtils;
 
 /**
@@ -122,12 +118,6 @@ public class CachedEmbeddingModel extends AbstractEmbeddingModel {
         }
         return embed(document.getText());
     }
-
-//    @Override
-//    public Embedding embed(Document document) {
-//        float[] vector = embed(document.getText());
-//        return new Embedding(vector, 0);
-//    }
 
     /**
      * 标准化 query 文本。

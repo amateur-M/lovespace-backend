@@ -2,6 +2,7 @@ package com.meng.lovespace.ai.dto;
 
 import lombok.Builder;
 import lombok.Data;
+import org.springframework.ai.document.Document;
 
 /**
  * 检索到的知识片段，用于前端可视化展示引用来源。
@@ -32,7 +33,7 @@ public class RetrievedChunk {
      * @param previewLength 预览长度
      * @return RetrievedChunk
      */
-    public static RetrievedChunk fromDocument(org.springframework.ai.document.Document doc, int previewLength) {
+    public static RetrievedChunk fromDocument(Document doc, int previewLength) {
         if (doc == null) {
             return null;
         }
