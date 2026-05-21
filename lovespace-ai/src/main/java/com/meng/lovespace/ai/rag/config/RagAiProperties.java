@@ -22,4 +22,10 @@ public class RagAiProperties {
 
     /** 保留的完整问答轮数（一轮 = 用户一条 + 助手一条）；超出则从最早一轮丢弃。 */
     private int maxHistoryPairs = 10;
+
+    /** 分片策略：token（推荐，基于 TokenTextSplitter，语义更连贯） | character（兼容旧版字符滑动窗口） */
+    private String chunkStrategy = "token";
+
+    /** 是否在入库前基于内容 SHA-256 去重，避免重复文档产生冗余向量（推荐开启） */
+    private boolean deduplicateOnIngest = true;
 }
