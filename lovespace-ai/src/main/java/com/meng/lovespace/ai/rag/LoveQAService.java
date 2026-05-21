@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.util.StringUtils;
 
 /**
  * 恋爱知识库 RAG：文档入库与基于检索上下文的问答；支持 Redis 多轮会话记忆。
@@ -144,10 +145,26 @@ public class LoveQAService implements LoveQaChatFacade {
         }
         List<LoveQAConversationTurn> priorSnapshot = new ArrayList<>(state.getTurns());
 
-        // 向量检索阶段
+        // 向量检索阶段（P1-3 增强：支持 metadata filter 实现情侣隔离）
         timer.phase(RagPhase.RETRIEVE);
         int topK = Math.max(1, ragAiProperties.getRetrieveTopK());
-        SearchRequest request = SearchRequest.builder().query(message).topK(topK).build();
+
+        SearchRequest.Builder builder = SearchRequest.builder()
+                .query(message)
+                .topK(topK);
+
+        // 强制情侣隔离过滤（关键安全与相关性增强）
+        // 只有当 params 中提供 coupleId 时才添加 filter，避免跨情侣数据污染检索结果
+        // 注意：filterExpression 语法遵循 Spring AI Expression Language，Milvus 后端已支持
+        if (StringUtils.hasText(coupleId)) {
+            builder.filterExpression("coupleId == '" + coupleId + "'");
+            log.debug("RAG retrieval with coupleId filter: {}", coupleId);
+        }
+
+        // 扩展点预留（未来可在此集成 HybridRetriever：向量 + BM25 融合，或调用 reranker 模型）
+        // if (enableHybrid) { hits = hybridRetriever.retrieve(...) } else { ... }
+
+        SearchRequest request = builder.build();
         List<Document> hits = vectorStore.similaritySearch(request);
         timer.markRetrieveDone();
         int chunkCount = hits.size();
