@@ -18,6 +18,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +34,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
@@ -54,20 +61,97 @@ public class LoveQAController {
         this.objectMapper = objectMapper;
     }
 
-    @Operation(summary = "知识库文档入库")
+    @Operation(summary = "知识库文档入库（纯文本）")
     @PostMapping("/ingest")
     public ApiResponse<Void> ingest(Authentication auth, @Valid @RequestBody LoveQaIngestRequest request) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("ownerUserId", p.userId());
-        if (request.title() != null && !request.title().isBlank()) {
-            meta.put("title", request.title());
-        }
-        if (request.metadata() != null) {
-            meta.putAll(request.metadata());
-        }
+        Map<String, Object> meta = buildMetadata(p, request.title(), request.sourceUrl(), request.category(), request.coupleId(), request.metadata());
         loveQaChatFacade.ingestDocument(request.text(), meta);
         return ApiResponse.ok();
+    }
+
+    @Operation(summary = "知识库文档上传（支持文件 Multipart + 可选 URL 抓取）")
+    @PostMapping(value = "/ingest/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Void> ingestFile(
+            Authentication auth,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam(value = "sourceUrl", required = false) String sourceUrl,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "coupleId", required = false) String coupleId) throws IOException {
+
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        String text;
+        try {
+            text = new String(file.getBytes(), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            log.warn("Failed to read file as UTF-8 text, filename={}", file.getOriginalFilename());
+            throw new IllegalArgumentException("文件读取失败，仅支持 UTF-8 文本文件（.txt, .md 等）");
+        }
+
+        Map<String, Object> meta = buildMetadata(p, title, sourceUrl, category, coupleId, null);
+        meta.put("originalFilename", file.getOriginalFilename());
+        meta.put("fileSize", file.getSize());
+
+        loveQaChatFacade.ingestDocument(text, meta);
+        return ApiResponse.ok();
+    }
+
+    @Operation(summary = "知识库文档从 URL 入库（抓取网页文本）")
+    @PostMapping("/ingest/url")
+    public ApiResponse<Void> ingestFromUrl(Authentication auth, @Valid @RequestBody LoveQaIngestRequest request) throws Exception {
+        if (!StringUtils.hasText(request.sourceUrl())) {
+            throw new IllegalArgumentException("sourceUrl 不能为空");
+        }
+        JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+
+        String text = fetchTextFromUrl(request.sourceUrl());
+        Map<String, Object> meta = buildMetadata(p, request.title(), request.sourceUrl(), request.category(), request.coupleId(), request.metadata());
+
+        loveQaChatFacade.ingestDocument(text, meta);
+        return ApiResponse.ok();
+    }
+
+    private String fetchTextFromUrl(String url) throws Exception {
+        HttpClient client = HttpClient.newHttpClient();
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("User-Agent", "LoveSpace-RAG/1.0")
+                .GET()
+                .build();
+        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() != 200) {
+            throw new IOException("URL fetch failed: HTTP " + resp.statusCode());
+        }
+        // 简单提取：去掉 script/style 等标签的纯文本（可后续增强 Jsoup）
+        String body = resp.body();
+        // 极简清理，实际生产建议用 Jsoup 或 readability
+        return body.replaceAll("<script[^>]*>.*?</script>", "")
+                   .replaceAll("<style[^>]*>.*?</style>", "")
+                   .replaceAll("<[^>]+>", " ")
+                   .replaceAll("\\s+", " ")
+                   .trim();
+    }
+
+    private Map<String, Object> buildMetadata(JwtUserPrincipal p, String title, String sourceUrl, String category, String coupleId, Map<String, Object> extra) {
+        Map<String, Object> meta = new HashMap<>();
+        meta.put("ownerUserId", p.userId());
+        if (StringUtils.hasText(title)) {
+            meta.put("title", title);
+        }
+        if (StringUtils.hasText(sourceUrl)) {
+            meta.put("sourceUrl", sourceUrl);
+        }
+        if (StringUtils.hasText(category)) {
+            meta.put("category", category);
+        }
+        if (StringUtils.hasText(coupleId)) {
+            meta.put("coupleId", coupleId);
+        }
+        if (extra != null) {
+            meta.putAll(extra);
+        }
+        return meta;
     }
 
     @Operation(summary = "基于知识库的恋爱问答（多轮记忆）")
