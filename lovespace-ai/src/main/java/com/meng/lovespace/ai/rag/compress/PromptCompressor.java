@@ -80,23 +80,62 @@ public class PromptCompressor {
     }
 
     /**
-     * 构建最终的系统 Prompt。
-     *
-     * @param systemPrefix 系统前缀（指令）
-     * @param context 检索上下文
-     * @return 组合后的系统 Prompt
+     * 构建最终的系统 Prompt（基础版，无来源列表）。
      */
     public String buildSystemPrompt(String systemPrefix, String context) {
+        return buildSystemPrompt(systemPrefix, context, null);
+    }
+
+    /**
+     * 构建最终的系统 Prompt（增强版，自动追加来源列表，便于模型引用）。
+     *
+     * <p>来源列表格式示例：
+     * <pre>
+     * 【来源列表】
+     * [1] title: 恋爱沟通技巧, sourceUrl: https://...
+     * [2] category: 冲突解决
+     * </pre>
+     *
+     * @param systemPrefix 系统前缀（指令）
+     * @param context 检索上下文（已压缩）
+     * @param sourceDocs 检索到的原始 Document 列表（用于提取 title/sourceUrl/category 等 metadata）
+     * @return 组合后的完整系统 Prompt（含来源列表）
+     */
+    public String buildSystemPrompt(String systemPrefix, String context, List<Document> sourceDocs) {
         StringBuilder sb = new StringBuilder(systemPrefix);
         sb.append("\n\n【检索到的上下文】\n");
-        
-        // 如果上下文超长，截断
+
+        // 上下文长度截断
         if (context != null && context.length() > maxContextLength) {
             context = context.substring(0, maxContextLength) + "\n...（内容已截断）";
             log.debug("Context truncated to {} chars", maxContextLength);
         }
-        
         sb.append(context);
+
+        // 追加来源列表（P1-4 幻觉控制关键增强）
+        if (sourceDocs != null && !sourceDocs.isEmpty()) {
+            sb.append("\n\n【来源列表】\n");
+            int idx = 1;
+            for (Document doc : sourceDocs) {
+                Map<String, Object> meta = doc.getMetadata();
+                String title = meta != null && meta.get("title") != null ? meta.get("title").toString() : "";
+                String sourceUrl = meta != null && meta.get("sourceUrl") != null ? meta.get("sourceUrl").toString() : "";
+                String category = meta != null && meta.get("category") != null ? meta.get("category").toString() : "";
+                String coupleId = meta != null && meta.get("coupleId") != null ? meta.get("coupleId").toString() : "";
+
+                StringBuilder line = new StringBuilder("[").append(idx).append("] ");
+                if (!title.isBlank()) line.append("title: ").append(title).append(", ");
+                if (!sourceUrl.isBlank()) line.append("sourceUrl: ").append(sourceUrl).append(", ");
+                if (!category.isBlank()) line.append("category: ").append(category).append(", ");
+                if (!coupleId.isBlank()) line.append("coupleId: ").append(coupleId);
+
+                // 去掉末尾多余逗号
+                String lineStr = line.toString().replaceAll(", $", "");
+                sb.append(lineStr).append("\n");
+                idx++;
+            }
+        }
+
         return sb.toString();
     }
 

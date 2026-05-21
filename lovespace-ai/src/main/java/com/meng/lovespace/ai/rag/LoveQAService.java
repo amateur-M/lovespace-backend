@@ -37,7 +37,11 @@ import org.springframework.util.StringUtils;
 public class LoveQAService implements LoveQaChatFacade {
 
     private static final String RAG_SYSTEM_PREFIX =
-            "你是一位恋爱与情感领域的助手。请仅根据下面「检索到的上下文」与「本轮之前的对话」回答用户问题；若上下文不足以回答，请明确说明，不要编造事实。\n\n";
+            "你是一位恋爱与情感领域的专业助手。请严格仅根据下面「检索到的上下文」与「本轮之前的对话」回答用户问题。\n\n" +
+            "【回答格式要求】\n" +
+            "1. 在关键论点或建议后，必须用【1】、【2】等格式引用来源编号（对应【来源列表】中的序号）。\n" +
+            "2. 若检索到的上下文不足以可靠回答，请明确回复：「根据当前知识库，我无法给出可靠答案，请提供更多细节或换个问题。」，严禁编造事实或虚构内容。\n" +
+            "3. 回答要结构清晰、共情且实用，先共情再给建议。\n\n";
 
     private final VectorStore vectorStore;
     private final DocumentIngestPipeline documentIngestPipeline;
@@ -183,8 +187,8 @@ public class LoveQAService implements LoveQaChatFacade {
                 priorSnapshot.stream().map(t -> new ChatTurn(t.role(), t.content())).toList();
         List<ChatTurn> priorForLlm = promptCompressor.compressHistory(priorForLlmRaw);
         
-        // 3. 构建系统 Prompt
-        String systemPrompt = promptCompressor.buildSystemPrompt(RAG_SYSTEM_PREFIX, context);
+        // 3. 构建系统 Prompt（P1-4 增强：传入 sourceDocs 以生成来源列表，强制模型引用）
+        String systemPrompt = promptCompressor.buildSystemPrompt(RAG_SYSTEM_PREFIX, context, compressedHits);
         
         timer.markPromptBuildDone();
 
