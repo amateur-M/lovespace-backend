@@ -11,6 +11,16 @@ public interface LoveQaChatFacade {
 
     void ingestDocument(String text, Map<String, Object> metadata);
 
+    /**
+     * 带 documentId 台账追踪的入库：为每个 chunk 写入 documentId/chunkIndex/totalChunks metadata，失败时补偿删除已写入向量。
+     *
+     * @return 成功写入 Milvus 的 chunk 数
+     */
+    int ingestDocumentWithTracking(String documentId, String text, Map<String, Object> metadata);
+
+    /** 按 metadata.documentId 删除 Milvus 中该文档的全部向量。 */
+    void deleteVectorsByDocumentId(String documentId);
+
     LoveQaChatResult chat(LoveQaChatParams params);
 
     /** 流式多轮问答：先回调 {@link LoveQaStreamCallback#onMeta}，再多次 {@link LoveQaStreamCallback#onDelta}，最后 {@link LoveQaStreamCallback#onCompleted}。 */

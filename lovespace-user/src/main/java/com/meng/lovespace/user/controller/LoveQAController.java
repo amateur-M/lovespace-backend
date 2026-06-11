@@ -12,8 +12,10 @@ import com.meng.lovespace.ai.dto.RetrievedChunk;
 import com.meng.lovespace.ai.exception.LoveQaConversationAccessException;
 import com.meng.lovespace.ai.exception.LoveQaConversationNotFoundException;
 import com.meng.lovespace.common.web.ApiResponse;
+import com.meng.lovespace.user.dto.LoveQaIngestResponseData;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
 import com.meng.lovespace.user.service.LoveQaConversationService;
+import com.meng.lovespace.user.service.LoveQaDocumentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -50,29 +52,40 @@ public class LoveQAController {
 
     private final LoveQaChatFacade loveQaChatFacade;
     private final LoveQaConversationService loveQaConversationService;
+    private final LoveQaDocumentService loveQaDocumentService;
     private final ObjectMapper objectMapper;
 
     public LoveQAController(
             LoveQaChatFacade loveQaChatFacade,
             LoveQaConversationService loveQaConversationService,
+            LoveQaDocumentService loveQaDocumentService,
             ObjectMapper objectMapper) {
         this.loveQaChatFacade = loveQaChatFacade;
         this.loveQaConversationService = loveQaConversationService;
+        this.loveQaDocumentService = loveQaDocumentService;
         this.objectMapper = objectMapper;
     }
 
-    @Operation(summary = "知识库文档入库（纯文本）")
+    @Operation(summary = "知识库文档入库（纯文本，写 MySQL 台账 + Milvus 向量）")
     @PostMapping("/ingest")
-    public ApiResponse<Void> ingest(Authentication auth, @Valid @RequestBody LoveQaIngestRequest request) {
+    public ApiResponse<LoveQaIngestResponseData> ingest(
+            Authentication auth, @Valid @RequestBody LoveQaIngestRequest request) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        Map<String, Object> meta = buildMetadata(p, request.title(), request.sourceUrl(), request.category(), request.coupleId(), request.metadata());
-        loveQaChatFacade.ingestDocument(request.text(), meta);
-        return ApiResponse.ok();
+        LoveQaIngestResponseData result =
+                loveQaDocumentService.ingest(
+                        p.userId(),
+                        request.text(),
+                        request.title(),
+                        request.sourceUrl(),
+                        request.category(),
+                        request.coupleId(),
+                        request.metadata());
+        return ApiResponse.ok(result);
     }
 
     @Operation(summary = "知识库文档上传（支持文件 Multipart + 可选 URL 抓取）")
     @PostMapping(value = "/ingest/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<Void> ingestFile(
+    public ApiResponse<LoveQaIngestResponseData> ingestFile(
             Authentication auth,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "title", required = false) String title,
@@ -89,27 +102,36 @@ public class LoveQAController {
             throw new IllegalArgumentException("文件读取失败，仅支持 UTF-8 文本文件（.txt, .md 等）");
         }
 
-        Map<String, Object> meta = buildMetadata(p, title, sourceUrl, category, coupleId, null);
-        meta.put("originalFilename", file.getOriginalFilename());
-        meta.put("fileSize", file.getSize());
+        Map<String, Object> extra = new HashMap<>();
+        extra.put("originalFilename", file.getOriginalFilename());
+        extra.put("fileSize", file.getSize());
 
-        loveQaChatFacade.ingestDocument(text, meta);
-        return ApiResponse.ok();
+        LoveQaIngestResponseData result =
+                loveQaDocumentService.ingest(
+                        p.userId(), text, title, sourceUrl, category, coupleId, extra);
+        return ApiResponse.ok(result);
     }
 
     @Operation(summary = "知识库文档从 URL 入库（抓取网页文本）")
     @PostMapping("/ingest/url")
-    public ApiResponse<Void> ingestFromUrl(Authentication auth, @Valid @RequestBody LoveQaIngestRequest request) throws Exception {
+    public ApiResponse<LoveQaIngestResponseData> ingestFromUrl(
+            Authentication auth, @Valid @RequestBody LoveQaIngestRequest request) throws Exception {
         if (!StringUtils.hasText(request.sourceUrl())) {
             throw new IllegalArgumentException("sourceUrl 不能为空");
         }
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
 
         String text = fetchTextFromUrl(request.sourceUrl());
-        Map<String, Object> meta = buildMetadata(p, request.title(), request.sourceUrl(), request.category(), request.coupleId(), request.metadata());
-
-        loveQaChatFacade.ingestDocument(text, meta);
-        return ApiResponse.ok();
+        LoveQaIngestResponseData result =
+                loveQaDocumentService.ingest(
+                        p.userId(),
+                        text,
+                        request.title(),
+                        request.sourceUrl(),
+                        request.category(),
+                        request.coupleId(),
+                        request.metadata());
+        return ApiResponse.ok(result);
     }
 
     private String fetchTextFromUrl(String url) throws Exception {
@@ -131,27 +153,6 @@ public class LoveQAController {
                    .replaceAll("<[^>]+>", " ")
                    .replaceAll("\\s+", " ")
                    .trim();
-    }
-
-    private Map<String, Object> buildMetadata(JwtUserPrincipal p, String title, String sourceUrl, String category, String coupleId, Map<String, Object> extra) {
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("ownerUserId", p.userId());
-        if (StringUtils.hasText(title)) {
-            meta.put("title", title);
-        }
-        if (StringUtils.hasText(sourceUrl)) {
-            meta.put("sourceUrl", sourceUrl);
-        }
-        if (StringUtils.hasText(category)) {
-            meta.put("category", category);
-        }
-        if (StringUtils.hasText(coupleId)) {
-            meta.put("coupleId", coupleId);
-        }
-        if (extra != null) {
-            meta.putAll(extra);
-        }
-        return meta;
     }
 
     @Operation(summary = "基于知识库的恋爱问答（多轮记忆）")

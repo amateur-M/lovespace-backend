@@ -3,6 +3,8 @@ package com.meng.lovespace.ai.rag.compress;
 import com.meng.lovespace.ai.dto.ChatTurn;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.stereotype.Component;

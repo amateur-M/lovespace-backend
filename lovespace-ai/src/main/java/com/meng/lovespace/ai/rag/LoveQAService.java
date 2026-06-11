@@ -15,7 +15,9 @@ import com.meng.lovespace.ai.rag.metrics.RagMetricsCollector;
 import com.meng.lovespace.ai.rag.metrics.RagPhase;
 import com.meng.lovespace.ai.rag.metrics.RagTimer;
 import com.meng.lovespace.ai.service.LlmRouter;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -60,6 +62,55 @@ public class LoveQAService implements LoveQaChatFacade {
         }
         vectorStore.add(docs);
         log.info("ingestDocument: added {} chunks", docs.size());
+    }
+
+    @Override
+    public int ingestDocumentWithTracking(String documentId, String text, Map<String, Object> metadata) {
+        if (!StringUtils.hasText(documentId)) {
+            throw new IllegalArgumentException("documentId 不能为空");
+        }
+        List<Document> docs = documentIngestPipeline.splitToDocuments(text, metadata);
+        if (docs.isEmpty()) {
+            log.warn("ingestDocumentWithTracking: no chunks produced documentId={}", documentId);
+            return 0;
+        }
+
+        int totalChunks = docs.size();
+        String ingestedAt = Instant.now().toString();
+        List<Document> enriched = new ArrayList<>(totalChunks);
+        for (int i = 0; i < totalChunks; i++) {
+            Document doc = docs.get(i);
+            Map<String, Object> meta = new HashMap<>(doc.getMetadata() != null ? doc.getMetadata() : Map.of());
+            meta.put("documentId", documentId);
+            meta.put("chunkIndex", i);
+            meta.put("totalChunks", totalChunks);
+            meta.putIfAbsent("ingestedAt", ingestedAt);
+            enriched.add(new Document(doc.getId(), doc.getText(), meta));
+        }
+
+        try {
+            vectorStore.add(enriched);
+            log.info("ingestDocumentWithTracking: documentId={} added {} chunks", documentId, enriched.size());
+            return enriched.size();
+        } catch (Exception e) {
+            log.error("ingestDocumentWithTracking failed documentId={}, compensating delete", documentId, e);
+            try {
+                deleteVectorsByDocumentId(documentId);
+            } catch (Exception ex) {
+                log.error("compensate delete failed documentId={}", documentId, ex);
+            }
+            throw e;
+        }
+    }
+
+    @Override
+    public void deleteVectorsByDocumentId(String documentId) {
+        if (!StringUtils.hasText(documentId)) {
+            return;
+        }
+        String safeId = documentId.trim().replace("'", "\\'");
+        vectorStore.delete("documentId == '" + safeId + "'");
+        log.info("deleteVectorsByDocumentId: documentId={}", documentId);
     }
 
     @Override
