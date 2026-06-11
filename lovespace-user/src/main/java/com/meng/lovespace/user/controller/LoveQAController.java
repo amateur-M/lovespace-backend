@@ -16,15 +16,12 @@ import com.meng.lovespace.user.dto.LoveQaIngestResponseData;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
 import com.meng.lovespace.user.service.LoveQaConversationService;
 import com.meng.lovespace.user.service.LoveQaDocumentService;
+import com.meng.lovespace.user.service.LoveQaIngestFileValidator;
+import com.meng.lovespace.user.service.LoveQaUrlFetchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,16 +50,22 @@ public class LoveQAController {
     private final LoveQaChatFacade loveQaChatFacade;
     private final LoveQaConversationService loveQaConversationService;
     private final LoveQaDocumentService loveQaDocumentService;
+    private final LoveQaUrlFetchService loveQaUrlFetchService;
+    private final LoveQaIngestFileValidator loveQaIngestFileValidator;
     private final ObjectMapper objectMapper;
 
     public LoveQAController(
             LoveQaChatFacade loveQaChatFacade,
             LoveQaConversationService loveQaConversationService,
             LoveQaDocumentService loveQaDocumentService,
+            LoveQaUrlFetchService loveQaUrlFetchService,
+            LoveQaIngestFileValidator loveQaIngestFileValidator,
             ObjectMapper objectMapper) {
         this.loveQaChatFacade = loveQaChatFacade;
         this.loveQaConversationService = loveQaConversationService;
         this.loveQaDocumentService = loveQaDocumentService;
+        this.loveQaUrlFetchService = loveQaUrlFetchService;
+        this.loveQaIngestFileValidator = loveQaIngestFileValidator;
         this.objectMapper = objectMapper;
     }
 
@@ -91,16 +94,10 @@ public class LoveQAController {
             @RequestParam(value = "title", required = false) String title,
             @RequestParam(value = "sourceUrl", required = false) String sourceUrl,
             @RequestParam(value = "category", required = false) String category,
-            @RequestParam(value = "coupleId", required = false) String coupleId) throws IOException {
+            @RequestParam(value = "coupleId", required = false) String coupleId) {
 
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
-        String text;
-        try {
-            text = new String(file.getBytes(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            log.warn("Failed to read file as UTF-8 text, filename={}", file.getOriginalFilename());
-            throw new IllegalArgumentException("文件读取失败，仅支持 UTF-8 文本文件（.txt, .md 等）");
-        }
+        String text = loveQaIngestFileValidator.readValidatedUtf8Text(file);
 
         Map<String, Object> extra = new HashMap<>();
         extra.put("originalFilename", file.getOriginalFilename());
@@ -115,13 +112,10 @@ public class LoveQAController {
     @Operation(summary = "知识库文档从 URL 入库（抓取网页文本）")
     @PostMapping("/ingest/url")
     public ApiResponse<LoveQaIngestResponseData> ingestFromUrl(
-            Authentication auth, @Valid @RequestBody LoveQaIngestRequest request) throws Exception {
-        if (!StringUtils.hasText(request.sourceUrl())) {
-            throw new IllegalArgumentException("sourceUrl 不能为空");
-        }
+            Authentication auth, @Valid @RequestBody LoveQaIngestRequest request) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
 
-        String text = fetchTextFromUrl(request.sourceUrl());
+        String text = loveQaUrlFetchService.fetchText(request.sourceUrl());
         LoveQaIngestResponseData result =
                 loveQaDocumentService.ingest(
                         p.userId(),
@@ -132,27 +126,6 @@ public class LoveQAController {
                         request.coupleId(),
                         request.metadata());
         return ApiResponse.ok(result);
-    }
-
-    private String fetchTextFromUrl(String url) throws Exception {
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest req = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .header("User-Agent", "LoveSpace-RAG/1.0")
-                .GET()
-                .build();
-        HttpResponse<String> resp = client.send(req, HttpResponse.BodyHandlers.ofString());
-        if (resp.statusCode() != 200) {
-            throw new IOException("URL fetch failed: HTTP " + resp.statusCode());
-        }
-        // 简单提取：去掉 script/style 等标签的纯文本（可后续增强 Jsoup）
-        String body = resp.body();
-        // 极简清理，实际生产建议用 Jsoup 或 readability
-        return body.replaceAll("<script[^>]*>.*?</script>", "")
-                   .replaceAll("<style[^>]*>.*?</style>", "")
-                   .replaceAll("<[^>]+>", " ")
-                   .replaceAll("\\s+", " ")
-                   .trim();
     }
 
     @Operation(summary = "基于知识库的恋爱问答（多轮记忆）")

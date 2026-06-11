@@ -3,6 +3,7 @@ package com.meng.lovespace.user.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.meng.lovespace.ai.api.LoveQaChatFacade;
+import com.meng.lovespace.ai.rag.config.RagAiProperties;
 import com.meng.lovespace.user.dto.LoveQaDocumentDetail;
 import com.meng.lovespace.user.dto.LoveQaDocumentPageResponse;
 import com.meng.lovespace.user.dto.LoveQaDocumentSummary;
@@ -11,15 +12,18 @@ import com.meng.lovespace.user.entity.LoveQaDocument;
 import com.meng.lovespace.user.exception.LoveQaBusinessException;
 import com.meng.lovespace.user.mapper.LoveQaDocumentMapper;
 import com.meng.lovespace.user.service.CoupleBindingService;
+import com.meng.lovespace.user.service.LoveQaDocumentDedupeService;
+import com.meng.lovespace.user.service.LoveQaDocumentIngestAsyncService;
+import com.meng.lovespace.user.service.LoveQaDocumentProcessor;
 import com.meng.lovespace.user.service.LoveQaDocumentService;
 import com.meng.lovespace.user.service.LoveQaIngestValidator;
 import com.meng.lovespace.user.service.LoveQaIngestValidator.LoveQaIngestScope;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -38,13 +42,16 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
     private static final int BAD_REQUEST = 40093;
 
     private static final String STATUS_PENDING = "PENDING";
-    private static final String STATUS_PROCESSING = "PROCESSING";
     private static final String STATUS_SUCCESS = "SUCCESS";
-    private static final String STATUS_FAILED = "FAILED";
+
     private final LoveQaDocumentMapper documentMapper;
     private final LoveQaChatFacade loveQaChatFacade;
     private final CoupleBindingService coupleBindingService;
     private final LoveQaIngestValidator ingestValidator;
+    private final LoveQaDocumentDedupeService dedupeService;
+    private final LoveQaDocumentProcessor documentProcessor;
+    private final LoveQaDocumentIngestAsyncService ingestAsyncService;
+    private final RagAiProperties ragAiProperties;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -63,50 +70,32 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
         LoveQaIngestScope ingestScope = ingestValidator.resolve(userId, coupleId);
         String scope = ingestScope.scope();
         String resolvedCoupleId = ingestScope.coupleId();
-
-        String documentId = UUID.randomUUID().toString();
         String contentHash = sha256Hex(text);
+        String trimmedSourceUrl = trimToNull(sourceUrl);
 
-        LoveQaDocument row = new LoveQaDocument();
-        row.setDocumentId(documentId);
-        row.setCoupleId(resolvedCoupleId);
-        row.setOwnerUserId(userId);
-        row.setTitle(trimToNull(title));
-        row.setSourceUrl(trimToNull(sourceUrl));
-        row.setCategory(trimToNull(category));
-        row.setScope(scope);
-        row.setContent(text);
-        row.setContentHash(contentHash);
-        row.setStatus(STATUS_PENDING);
-        row.setChunkCount(0);
-        documentMapper.insert(row);
+        Optional<LoveQaDocument> duplicate =
+                dedupeService.findDuplicateOrReject(contentHash, trimmedSourceUrl, resolvedCoupleId);
 
-        row.setStatus(STATUS_PROCESSING);
-        documentMapper.updateById(row);
-
-        Map<String, Object> meta = buildIngestMetadata(
-                userId, title, sourceUrl, category, resolvedCoupleId, scope, extraMetadata);
-
-        try {
-            int chunkCount = loveQaChatFacade.ingestDocumentWithTracking(documentId, text, meta);
-            row.setStatus(STATUS_SUCCESS);
-            row.setChunkCount(chunkCount);
+        LoveQaDocument row;
+        if (duplicate.isPresent()) {
+            row = duplicate.get();
+            loveQaChatFacade.deleteVectorsByDocumentId(row.getDocumentId());
+            applyIngestFields(row, userId, text, title, trimmedSourceUrl, category, scope, resolvedCoupleId, contentHash);
+            row.setStatus(STATUS_PENDING);
+            row.setChunkCount(0);
             row.setErrorMessage(null);
             documentMapper.updateById(row);
-            log.info(
-                    "love-qa document ingest success documentId={} chunkCount={} coupleId={}",
-                    documentId,
-                    chunkCount,
-                    resolvedCoupleId);
-            return new LoveQaIngestResponseData(documentId, STATUS_SUCCESS, chunkCount);
-        } catch (Exception e) {
-            String err = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            row.setStatus(STATUS_FAILED);
-            row.setErrorMessage(truncateError(err));
-            documentMapper.updateById(row);
-            log.error("love-qa document ingest failed documentId={}", documentId, e);
-            throw new LoveQaBusinessException(50093, "文档入库失败：" + truncateError(err));
+            log.info("love-qa document dedupe UPDATE documentId={}", row.getDocumentId());
+        } else {
+            row = new LoveQaDocument();
+            row.setDocumentId(UUID.randomUUID().toString());
+            applyIngestFields(row, userId, text, title, trimmedSourceUrl, category, scope, resolvedCoupleId, contentHash);
+            row.setStatus(STATUS_PENDING);
+            row.setChunkCount(0);
+            documentMapper.insert(row);
         }
+
+        return dispatchIngest(row.getDocumentId());
     }
 
     @Override
@@ -151,38 +140,53 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
         }
 
         loveQaChatFacade.deleteVectorsByDocumentId(doc.getDocumentId());
-        doc.setStatus(STATUS_PROCESSING);
+        doc.setStatus(STATUS_PENDING);
         doc.setErrorMessage(null);
         doc.setChunkCount(0);
         documentMapper.updateById(doc);
 
-        Map<String, Object> meta =
-                buildIngestMetadata(
-                        doc.getOwnerUserId(),
-                        doc.getTitle(),
-                        doc.getSourceUrl(),
-                        doc.getCategory(),
-                        doc.getCoupleId(),
-                        doc.getScope(),
-                        null);
+        return dispatchIngest(doc.getDocumentId());
+    }
 
-        try {
-            int chunkCount =
-                    loveQaChatFacade.ingestDocumentWithTracking(
-                            doc.getDocumentId(), doc.getContent(), meta);
-            doc.setStatus(STATUS_SUCCESS);
-            doc.setChunkCount(chunkCount);
-            documentMapper.updateById(doc);
-            log.info("love-qa document reingest success documentId={} chunkCount={}", documentId, chunkCount);
-            return new LoveQaIngestResponseData(doc.getDocumentId(), STATUS_SUCCESS, chunkCount);
-        } catch (Exception e) {
-            String err = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-            doc.setStatus(STATUS_FAILED);
-            doc.setErrorMessage(truncateError(err));
-            documentMapper.updateById(doc);
-            log.error("love-qa document reingest failed documentId={}", documentId, e);
-            throw new LoveQaBusinessException(50093, "文档重入库失败：" + truncateError(err));
+    private LoveQaIngestResponseData dispatchIngest(String documentId) {
+        if (ragAiProperties.isAsyncIngest()) {
+            ingestAsyncService.processDocumentAsync(documentId);
+            return new LoveQaIngestResponseData(documentId, STATUS_PENDING, 0);
         }
+        documentProcessor.processDocument(documentId);
+        LoveQaDocument done = documentMapper.selectById(documentId);
+        if (done == null) {
+            throw new LoveQaBusinessException(50093, "文档入库失败");
+        }
+        if (!STATUS_SUCCESS.equals(done.getStatus())) {
+            throw new LoveQaBusinessException(
+                    50093,
+                    "文档入库失败：" + (done.getErrorMessage() != null ? done.getErrorMessage() : done.getStatus()));
+        }
+        return new LoveQaIngestResponseData(
+                documentId,
+                done.getStatus(),
+                done.getChunkCount() != null ? done.getChunkCount() : 0);
+    }
+
+    private static void applyIngestFields(
+            LoveQaDocument row,
+            String userId,
+            String text,
+            String title,
+            String sourceUrl,
+            String category,
+            String scope,
+            String coupleId,
+            String contentHash) {
+        row.setOwnerUserId(userId);
+        row.setTitle(trimToNull(title));
+        row.setSourceUrl(sourceUrl);
+        row.setCategory(trimToNull(category));
+        row.setScope(scope);
+        row.setCoupleId(coupleId);
+        row.setContent(text);
+        row.setContentHash(contentHash);
     }
 
     private LoveQaDocument requireReadableDocument(String userId, String documentId) {
@@ -212,40 +216,6 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
             }
         }
         throw new LoveQaBusinessException(FORBIDDEN, "无权访问该文档");
-    }
-
-    private static Map<String, Object> buildIngestMetadata(
-            String ownerUserId,
-            String title,
-            String sourceUrl,
-            String category,
-            String coupleId,
-            String scope,
-            Map<String, Object> extra) {
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("ownerUserId", ownerUserId);
-        meta.put("scope", scope);
-        if (LoveQaIngestValidator.SCOPE_COUPLE.equals(scope) && StringUtils.hasText(coupleId)) {
-            meta.put("coupleId", coupleId.trim());
-        }
-        if (StringUtils.hasText(title)) {
-            meta.put("title", title.trim());
-        }
-        if (StringUtils.hasText(sourceUrl)) {
-            meta.put("sourceUrl", sourceUrl.trim());
-        }
-        if (StringUtils.hasText(category)) {
-            meta.put("category", category.trim());
-        }
-        if (extra != null) {
-            extra.forEach(
-                    (k, v) -> {
-                        if (k != null && v != null) {
-                            meta.put(k, v);
-                        }
-                    });
-        }
-        return meta;
     }
 
     private LoveQaDocumentSummary toSummary(LoveQaDocument doc) {
@@ -284,13 +254,6 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
         }
         String t = s.trim();
         return t.isEmpty() ? null : t;
-    }
-
-    private static String truncateError(String msg) {
-        if (msg == null) {
-            return null;
-        }
-        return msg.length() > 500 ? msg.substring(0, 500) : msg;
     }
 
     private static String sha256Hex(String text) {

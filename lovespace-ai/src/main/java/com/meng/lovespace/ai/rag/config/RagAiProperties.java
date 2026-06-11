@@ -33,4 +33,19 @@ public class RagAiProperties {
      * 是否允许未传 coupleId 时以 GLOBAL scope 入库（默认 false，须绑定情侣后以 COUPLE 入库）。
      */
     private boolean allowGlobalIngest = false;
+
+    /** 异步入库：HTTP 立即返回 PENDING，后台分片 + Embedding + Milvus。 */
+    private boolean asyncIngest = true;
+
+    /** 文档级去重策略：REJECT（冲突 40994）| UPDATE（删旧向量后更新同 documentId）。 */
+    private String documentDedupeStrategy = "REJECT";
+
+    /** 入库文件最大字节（默认 5MB）。 */
+    private int ingestMaxFileBytes = 5 * 1024 * 1024;
+
+    /** URL 抓取响应体上限（默认 2MB）。 */
+    private int ingestUrlMaxBytes = 2 * 1024 * 1024;
+
+    /** URL 抓取超时（秒）。 */
+    private int ingestUrlTimeoutSeconds = 15;
 }
