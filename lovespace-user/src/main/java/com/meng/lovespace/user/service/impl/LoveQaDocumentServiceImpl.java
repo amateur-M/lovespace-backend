@@ -12,6 +12,8 @@ import com.meng.lovespace.user.exception.LoveQaBusinessException;
 import com.meng.lovespace.user.mapper.LoveQaDocumentMapper;
 import com.meng.lovespace.user.service.CoupleBindingService;
 import com.meng.lovespace.user.service.LoveQaDocumentService;
+import com.meng.lovespace.user.service.LoveQaIngestValidator;
+import com.meng.lovespace.user.service.LoveQaIngestValidator.LoveQaIngestScope;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -39,12 +41,10 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
     private static final String STATUS_PROCESSING = "PROCESSING";
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
-    private static final String SCOPE_COUPLE = "COUPLE";
-    private static final String SCOPE_GLOBAL = "GLOBAL";
-
     private final LoveQaDocumentMapper documentMapper;
     private final LoveQaChatFacade loveQaChatFacade;
     private final CoupleBindingService coupleBindingService;
+    private final LoveQaIngestValidator ingestValidator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -60,14 +60,9 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
             throw new LoveQaBusinessException(BAD_REQUEST, "文档内容不能为空");
         }
 
-        String scope;
-        String resolvedCoupleId = trimToNull(coupleId);
-        if (resolvedCoupleId != null) {
-            requireCoupleMembership(userId, resolvedCoupleId);
-            scope = SCOPE_COUPLE;
-        } else {
-            scope = SCOPE_GLOBAL;
-        }
+        LoveQaIngestScope ingestScope = ingestValidator.resolve(userId, coupleId);
+        String scope = ingestScope.scope();
+        String resolvedCoupleId = ingestScope.coupleId();
 
         String documentId = UUID.randomUUID().toString();
         String contentHash = sha256Hex(text);
@@ -199,6 +194,12 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
         return doc;
     }
 
+    private void requireCoupleMembership(String userId, String coupleId) {
+        coupleBindingService
+                .findActiveOrFrozenMembership(userId, coupleId)
+                .orElseThrow(() -> new LoveQaBusinessException(FORBIDDEN, "无权查看该情侣的知识库文档"));
+    }
+
     private void verifyReadAccess(String userId, LoveQaDocument doc) {
         if (userId.equals(doc.getOwnerUserId())) {
             return;
@@ -213,12 +214,6 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
         throw new LoveQaBusinessException(FORBIDDEN, "无权访问该文档");
     }
 
-    private void requireCoupleMembership(String userId, String coupleId) {
-        coupleBindingService
-                .findActiveOrFrozenMembership(userId, coupleId)
-                .orElseThrow(() -> new LoveQaBusinessException(FORBIDDEN, "无权为该情侣入库或查看文档"));
-    }
-
     private static Map<String, Object> buildIngestMetadata(
             String ownerUserId,
             String title,
@@ -230,6 +225,9 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
         Map<String, Object> meta = new HashMap<>();
         meta.put("ownerUserId", ownerUserId);
         meta.put("scope", scope);
+        if (LoveQaIngestValidator.SCOPE_COUPLE.equals(scope) && StringUtils.hasText(coupleId)) {
+            meta.put("coupleId", coupleId.trim());
+        }
         if (StringUtils.hasText(title)) {
             meta.put("title", title.trim());
         }
@@ -239,11 +237,13 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
         if (StringUtils.hasText(category)) {
             meta.put("category", category.trim());
         }
-        if (StringUtils.hasText(coupleId)) {
-            meta.put("coupleId", coupleId.trim());
-        }
         if (extra != null) {
-            meta.putAll(extra);
+            extra.forEach(
+                    (k, v) -> {
+                        if (k != null && v != null) {
+                            meta.put(k, v);
+                        }
+                    });
         }
         return meta;
     }

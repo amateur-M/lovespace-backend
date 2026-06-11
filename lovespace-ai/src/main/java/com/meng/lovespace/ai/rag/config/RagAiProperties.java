@@ -28,4 +28,9 @@ public class RagAiProperties {
 
     /** 是否在入库前基于内容 SHA-256 去重，避免重复文档产生冗余向量（推荐开启） */
     private boolean deduplicateOnIngest = true;
+
+    /**
+     * 是否允许未传 coupleId 时以 GLOBAL scope 入库（默认 false，须绑定情侣后以 COUPLE 入库）。
+     */
+    private boolean allowGlobalIngest = false;
 }
