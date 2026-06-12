@@ -2,6 +2,9 @@ package com.meng.lovespace.user.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.meng.lovespace.ai.dto.RetrievedChunk;
 import com.meng.lovespace.ai.rag.LoveQAConversationState;
 import com.meng.lovespace.ai.rag.LoveQAConversationStore;
 import com.meng.lovespace.ai.rag.LoveQAConversationTurn;
@@ -36,6 +39,10 @@ public class LoveQaConversationServiceImpl implements LoveQaConversationService 
     private final LoveQaMessageMapper messageMapper;
     private final LoveQAConversationStore conversationStore;
     private final RagAiProperties ragAiProperties;
+    private final ObjectMapper objectMapper;
+
+    private static final TypeReference<List<RetrievedChunk>> RETRIEVED_CHUNKS_TYPE =
+            new TypeReference<>() {};
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -44,7 +51,8 @@ public class LoveQaConversationServiceImpl implements LoveQaConversationService 
             String userId,
             String coupleId,
             String userMessage,
-            String assistantReply) {
+            String assistantReply,
+            List<RetrievedChunk> retrievedChunks) {
         LoveQaConversation existing = conversationMapper.selectById(conversationId);
         if (existing == null) {
             LoveQaConversation row = new LoveQaConversation();
@@ -64,15 +72,23 @@ public class LoveQaConversationServiceImpl implements LoveQaConversationService 
             conversationMapper.updateById(existing);
         }
 
-        insertMessage(conversationId, "user", userMessage);
-        insertMessage(conversationId, "assistant", assistantReply);
+        insertMessage(conversationId, "user", userMessage, null);
+        insertMessage(conversationId, "assistant", assistantReply, retrievedChunks);
     }
 
-    private void insertMessage(String conversationId, String role, String content) {
+    private void insertMessage(
+            String conversationId, String role, String content, List<RetrievedChunk> retrievedChunks) {
         LoveQaMessage m = new LoveQaMessage();
         m.setConversationId(conversationId);
         m.setRole(role);
         m.setContent(content);
+        if (retrievedChunks != null && !retrievedChunks.isEmpty()) {
+            try {
+                m.setRetrievedChunksJson(objectMapper.writeValueAsString(retrievedChunks));
+            } catch (Exception e) {
+                log.warn("serialize retrieved chunks failed conversationId={}", conversationId, e);
+            }
+        }
         messageMapper.insert(m);
     }
 
@@ -121,9 +137,26 @@ public class LoveQaConversationServiceImpl implements LoveQaConversationService 
                         .map(
                                 m ->
                                         new LoveQaMessageLine(
-                                                m.getId(), m.getRole(), m.getContent(), m.getCreatedAt()))
+                                                m.getId(),
+                                                m.getRole(),
+                                                m.getContent(),
+                                                m.getCreatedAt(),
+                                                parseRetrievedChunks(m.getRetrievedChunksJson())))
                         .collect(Collectors.toList());
         return new LoveQaMessagesResponse(conversationId, lines);
+    }
+
+    private List<RetrievedChunk> parseRetrievedChunks(String json) {
+        if (!StringUtils.hasText(json)) {
+            return List.of();
+        }
+        try {
+            List<RetrievedChunk> chunks = objectMapper.readValue(json, RETRIEVED_CHUNKS_TYPE);
+            return chunks != null ? chunks : List.of();
+        } catch (Exception e) {
+            log.warn("parse retrieved chunks json failed", e);
+            return List.of();
+        }
     }
 
     @Override

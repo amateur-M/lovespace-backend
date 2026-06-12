@@ -25,6 +25,9 @@ public class LoveQaMessage {
     @TableField("content")
     private String content;
 
+    @TableField("retrieved_chunks_json")
+    private String retrievedChunksJson;
+
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }

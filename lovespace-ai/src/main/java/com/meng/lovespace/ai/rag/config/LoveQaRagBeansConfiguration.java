@@ -8,6 +8,7 @@ import com.meng.lovespace.ai.rag.LoveQAConversationStore;
 import com.meng.lovespace.ai.rag.LoveQAService;
 import com.meng.lovespace.ai.rag.compress.PromptCompressor;
 import com.meng.lovespace.ai.rag.metrics.RagMetricsCollector;
+import com.meng.lovespace.ai.rag.retrieve.RagRetrievalPipeline;
 import com.meng.lovespace.ai.service.LlmRouter;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Bean;
@@ -37,10 +38,17 @@ public class LoveQaRagBeansConfiguration {
             RagAiProperties ragAiProperties,
             LoveQAConversationStore loveQAConversationStore,
             RagMetricsCollector metricsCollector,
-            PromptCompressor promptCompressor) {
+            PromptCompressor promptCompressor,
+            RagRetrievalPipeline retrievalPipeline) {
         return new LoveQAService(
-                vectorStore, documentIngestPipeline, llmRouter, ragAiProperties,
-                loveQAConversationStore, metricsCollector, promptCompressor);
+                vectorStore,
+                documentIngestPipeline,
+                llmRouter,
+                ragAiProperties,
+                loveQAConversationStore,
+                metricsCollector,
+                promptCompressor,
+                retrievalPipeline);
     }
 
     @Bean

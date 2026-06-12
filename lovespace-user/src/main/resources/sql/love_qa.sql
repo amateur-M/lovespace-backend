@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS love_qa_messages (
   conversation_id VARCHAR(64) NOT NULL,
   role VARCHAR(16) NOT NULL COMMENT 'user | assistant',
   content MEDIUMTEXT NOT NULL,
+  retrieved_chunks_json MEDIUMTEXT NULL COMMENT 'assistant 消息的 RetrievedChunk JSON 快照',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_love_qa_msg_conv_created (conversation_id, created_at),

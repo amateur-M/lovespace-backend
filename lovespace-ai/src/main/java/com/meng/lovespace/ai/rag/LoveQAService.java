@@ -14,7 +14,7 @@ import com.meng.lovespace.ai.rag.compress.PromptCompressor;
 import com.meng.lovespace.ai.rag.metrics.RagMetricsCollector;
 import com.meng.lovespace.ai.rag.metrics.RagPhase;
 import com.meng.lovespace.ai.rag.metrics.RagTimer;
-import com.meng.lovespace.ai.rag.retrieve.RagSimilarityFilter;
+import com.meng.lovespace.ai.rag.retrieve.RagRetrievalPipeline;
 import com.meng.lovespace.ai.service.LlmRouter;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.util.StringUtils;
 
@@ -57,6 +56,7 @@ public class LoveQAService implements LoveQaChatFacade {
     private final LoveQAConversationStore conversationStore;
     private final RagMetricsCollector metricsCollector;
     private final PromptCompressor promptCompressor;
+    private final RagRetrievalPipeline retrievalPipeline;
 
     @Override
     public void ingestDocument(String text, Map<String, Object> metadata) {
@@ -126,7 +126,7 @@ public class LoveQAService implements LoveQaChatFacade {
             persistRound(prep, NO_RETRIEVAL_REPLY, timer);
             metricsCollector.record(
                     timer, prep.conversationId(), prep.userMessage().length(), 0);
-            return new LoveQaChatResult(NO_RETRIEVAL_REPLY, prep.conversationId());
+            return new LoveQaChatResult(NO_RETRIEVAL_REPLY, prep.conversationId(), List.of());
         }
         LLMProvider llm = llmRouter.resolve();
 
@@ -138,7 +138,7 @@ public class LoveQAService implements LoveQaChatFacade {
         persistRound(prep, reply, timer);
         metricsCollector.record(timer, prep.conversationId(), 
                 prep.userMessage().length(), prep.retrievedChunkCount());
-        return new LoveQaChatResult(reply, prep.conversationId());
+        return new LoveQaChatResult(reply, prep.conversationId(), prep.retrievedChunks());
     }
 
     @Override
@@ -219,38 +219,21 @@ public class LoveQAService implements LoveQaChatFacade {
         }
         List<LoveQAConversationTurn> priorSnapshot = new ArrayList<>(state.getTurns());
 
-        // 向量检索：candidate-k 初召回 → 相似度阈值 → final topK
+        // 向量检索：candidate-k → 阈值 → documentId 去重 → L1 rerank → final topK
         timer.phase(RagPhase.RETRIEVE);
-        int finalTopK = Math.max(1, ragAiProperties.getRetrieveTopK());
-        int candidateK =
-                Math.max(finalTopK, Math.max(1, ragAiProperties.getRetrieveCandidateK()));
-        double threshold = ragAiProperties.getSimilarityThreshold();
-
-        SearchRequest.Builder builder =
-                SearchRequest.builder().query(message).topK(candidateK);
-
         String filterExpression = params.retrievalFilterExpression();
-        if (StringUtils.hasText(filterExpression)) {
-            builder.filterExpression(filterExpression.trim());
-            log.debug("RAG retrieval filter: {}", filterExpression);
-        } else {
+        if (!StringUtils.hasText(filterExpression)) {
             log.warn(
                     "RAG retrieval without filterExpression userId={} coupleId={}",
                     userId,
                     coupleId);
+        } else {
+            log.debug("RAG retrieval filter: {}", filterExpression);
         }
 
-        SearchRequest request = builder.build();
-        List<Document> candidates = vectorStore.similaritySearch(request);
-        List<Document> hits =
-                RagSimilarityFilter.filterAndLimit(candidates, threshold, finalTopK);
+        List<Document> hits = retrievalPipeline.retrieve(message, filterExpression);
         timer.markRetrieveDone();
         boolean noRetrievalHit = hits.isEmpty();
-        log.debug(
-                "RAG retrieve candidateCount={} finalCount={} threshold={}",
-                candidates.size(),
-                hits.size(),
-                threshold);
 
         // Prompt 构建阶段（含压缩）
         timer.phase(RagPhase.PROMPT_BUILD);

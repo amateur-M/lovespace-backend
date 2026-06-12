@@ -1,7 +1,9 @@
 package com.meng.lovespace.user.service;
 
+import com.meng.lovespace.ai.dto.RetrievedChunk;
 import com.meng.lovespace.user.dto.LoveQaConversationPageResponse;
 import com.meng.lovespace.user.dto.LoveQaMessagesResponse;
+import java.util.List;
 
 /** 恋爱问答会话与消息的 MySQL 持久化及查询。 */
 public interface LoveQaConversationService {
@@ -14,13 +16,15 @@ public interface LoveQaConversationService {
      * @param coupleId 可选情侣 ID
      * @param userMessage 用户本轮输入
      * @param assistantReply 模型回复
+     * @param retrievedChunks 本轮 assistant 检索引用快照，可为 null 或空
      */
     void appendChatRound(
             String conversationId,
             String userId,
             String coupleId,
             String userMessage,
-            String assistantReply);
+            String assistantReply,
+            List<RetrievedChunk> retrievedChunks);
 
     /** 当前用户的会话列表（按更新时间倒序）。 */
     LoveQaConversationPageResponse pageConversations(String userId, long page, long pageSize);

@@ -160,7 +160,8 @@ public class LoveQAController {
                     p.userId(),
                     retrievalCtx.effectiveCoupleId(),
                     request.message(),
-                    result.reply());
+                    result.reply(),
+                    result.retrievedChunks());
         } catch (Exception e) {
             log.error(
                     "love-qa persist to DB failed conversationId={}",
@@ -201,6 +202,7 @@ public class LoveQAController {
                         retrievalCtx.filterExpression());
         SseEmitter emitter = new SseEmitter(120_000L);
         AtomicReference<String> streamConversationId = new AtomicReference<>();
+        AtomicReference<List<RetrievedChunk>> streamRetrievedChunks = new AtomicReference<>(List.of());
         LoveQaChatRetrievalContext ctxForPersist = retrievalCtx;
         Thread.ofVirtual()
                 .start(
@@ -220,7 +222,8 @@ public class LoveQAController {
 
                                             @Override
                                             public void onRetrieved(List<RetrievedChunk> chunks) {
-                                                // 发送检索结果供前端可视化引用来源
+                                                streamRetrievedChunks.set(
+                                                        chunks != null ? chunks : List.of());
                                                 sendSse(emitter, "retrieved", Map.of("chunks", chunks));
                                             }
 
@@ -238,7 +241,8 @@ public class LoveQAController {
                                                             p.userId(),
                                                             ctxForPersist.effectiveCoupleId(),
                                                             request.message(),
-                                                            fullReply);
+                                                            fullReply,
+                                                            streamRetrievedChunks.get());
                                                 } catch (Exception ex) {
                                                     log.error(
                                                             "love-qa stream persist to DB failed conversationId={}",

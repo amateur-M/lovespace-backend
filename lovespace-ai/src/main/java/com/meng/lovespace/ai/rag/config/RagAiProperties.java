@@ -26,6 +26,21 @@ public class RagAiProperties {
     /** 已绑定情侣检索时是否包含 scope=GLOBAL 公共库（false 则仅 coupleId 私有）。 */
     private boolean allowGlobalFallback = true;
 
+    /** 检索后按 documentId 去重，同一文档仅保留最高分 chunk。 */
+    private boolean dedupeByDocumentId = true;
+
+    /** 是否启用 L1 规则重排（向量分 + category + 新近度）。 */
+    private boolean rerankEnabled = true;
+
+    /** L1 rerank：category 与 query 匹配时的加分（0–1 量级）。 */
+    private double rerankCategoryBoost = 0.05;
+
+    /** L1 rerank：新近入库文档的最大加分（0–1 量级）。 */
+    private double rerankRecencyBoost = 0.05;
+
+    /** L1 rerank：新近度加权窗口（天），超出则无 recency 加分。 */
+    private int rerankRecencyDays = 90;
+
     /** 多轮对话在 Redis 中的 TTL（秒），默认 7 天。 */
     private long conversationTtlSeconds = 604800L;
 

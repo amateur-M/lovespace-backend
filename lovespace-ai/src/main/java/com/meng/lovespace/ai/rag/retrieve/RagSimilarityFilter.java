@@ -42,18 +42,26 @@ public final class RagSimilarityFilter {
      * 按 Milvus 返回顺序做阈值过滤，再取前 {@code topK} 条。
      */
     public static List<Document> filterAndLimit(List<Document> candidates, double threshold, int topK) {
-        if (candidates == null || candidates.isEmpty()) {
+        List<Document> filtered = filterByThreshold(candidates, threshold);
+        if (filtered.isEmpty()) {
             return List.of();
         }
         int limit = Math.max(1, topK);
-        List<Document> result = new ArrayList<>(Math.min(candidates.size(), limit));
+        if (filtered.size() <= limit) {
+            return filtered;
+        }
+        return filtered.subList(0, limit);
+    }
+
+    /** 阈值过滤，不截断条数（供 dedupe / rerank 前使用）。 */
+    public static List<Document> filterByThreshold(List<Document> candidates, double threshold) {
+        if (candidates == null || candidates.isEmpty()) {
+            return List.of();
+        }
+        List<Document> result = new ArrayList<>(candidates.size());
         for (Document doc : candidates) {
-            if (!passesThreshold(doc, threshold)) {
-                continue;
-            }
-            result.add(doc);
-            if (result.size() >= limit) {
-                break;
+            if (passesThreshold(doc, threshold)) {
+                result.add(doc);
             }
         }
         return result;
