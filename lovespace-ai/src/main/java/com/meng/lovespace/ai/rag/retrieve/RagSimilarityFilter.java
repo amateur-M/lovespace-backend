@@ -31,11 +31,22 @@ public final class RagSimilarityFilter {
      * 是否通过相似度阈值。无 score 元数据时保留（兼容旧向量），由 Milvus 排序决定。
      */
     public static boolean passesThreshold(Document doc, double threshold) {
+        if (isKeywordRetrieval(doc)) {
+            return true;
+        }
         Double score = scoreFromDocument(doc);
         if (score == null) {
             return true;
         }
         return score >= threshold;
+    }
+
+    private static boolean isKeywordRetrieval(Document doc) {
+        if (doc == null || doc.getMetadata() == null) {
+            return false;
+        }
+        Object source = doc.getMetadata().get(LoveQaKeywordDocumentAdapter.RETRIEVAL_SOURCE);
+        return LoveQaKeywordDocumentAdapter.SOURCE_KEYWORD.equals(source);
     }
 
     /**

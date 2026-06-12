@@ -231,7 +231,7 @@ public class LoveQAService implements LoveQaChatFacade {
             log.debug("RAG retrieval filter: {}", filterExpression);
         }
 
-        List<Document> hits = retrievalPipeline.retrieve(message, filterExpression);
+        List<Document> hits = retrievalPipeline.retrieve(message, filterExpression, coupleId);
         timer.markRetrieveDone();
         boolean noRetrievalHit = hits.isEmpty();
 

@@ -72,4 +72,13 @@ public class RagAiProperties {
 
     /** URL 抓取超时（秒）。 */
     private int ingestUrlTimeoutSeconds = 15;
+
+    /** 是否启用混合检索（Milvus 向量 + MySQL FULLTEXT RRF 融合）。 */
+    private boolean hybridRetrievalEnabled = true;
+
+    /** 混合检索：MySQL BM25/FULLTEXT 初召回文档数。 */
+    private int hybridBm25TopK = 16;
+
+    /** 混合检索：RRF 融合常数 k（通常 60）。 */
+    private int hybridRrfK = 60;
 }

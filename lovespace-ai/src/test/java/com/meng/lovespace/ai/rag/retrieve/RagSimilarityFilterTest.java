@@ -39,6 +39,14 @@ class RagSimilarityFilterTest {
         assertFalse(result.contains(docWithDistance(1.5)));
     }
 
+    @Test
+    void passesThreshold_allowsKeywordRetrievalWithoutVectorScore() {
+        Map<String, Object> meta = new HashMap<>();
+        meta.put(LoveQaKeywordDocumentAdapter.RETRIEVAL_SOURCE, LoveQaKeywordDocumentAdapter.SOURCE_KEYWORD);
+        Document keywordDoc = new Document("keyword-x", "text", meta);
+        assertTrue(RagSimilarityFilter.passesThreshold(keywordDoc, 0.99));
+    }
+
     private static Document docWithDistance(double distance) {
         Map<String, Object> meta = new HashMap<>();
         meta.put("distance", distance);

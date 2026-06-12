@@ -27,6 +27,8 @@ logging:
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
 
 spring:
+  profiles:
+    active: local
   application:
     name: lovespace-user
   # 禁用 OpenAI 自动配置（项目使用通义千问 DashScope）
@@ -139,9 +141,27 @@ lovespace:
       chunk-size: 800
       chunk-overlap: 100
       retrieve-top-k: 4
+      retrieve-candidate-k: 16
+      similarity-threshold: 0.55
+      allow-global-fallback: true
+      dedupe-by-document-id: true
+      rerank-enabled: true
+      rerank-category-boost: 0.05
+      rerank-recency-boost: 0.05
+      rerank-recency-days: 90
+      hybrid-retrieval-enabled: true
+      hybrid-bm25-top-k: 16
+      hybrid-rrf-k: 60
       # 多轮会话：Redis TTL（秒）与最多保留的「问答轮数」（一轮 = 用户 + 助手各一条）
       conversation-ttl-seconds: 604800
       max-history-pairs: 10
+      # 默认关闭 GLOBAL 入库，须绑定情侣后以 COUPLE scope 写入
+      allow-global-ingest: false
+      async-ingest: true
+      document-dedupe-strategy: REJECT
+      ingest-max-file-bytes: 5242880
+      ingest-url-max-bytes: 2097152
+      ingest-url-timeout-seconds: 15
     travel:
       poi-vector-search-enabled: false
   milvus:

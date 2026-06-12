@@ -18,5 +18,6 @@ CREATE TABLE IF NOT EXISTS love_qa_documents (
   KEY idx_love_qa_doc_couple_updated (couple_id, updated_at),
   KEY idx_love_qa_doc_owner_updated (owner_user_id, updated_at),
   KEY idx_love_qa_doc_content_hash (content_hash),
-  KEY idx_love_qa_doc_source_couple (source_url(255), couple_id)
+  KEY idx_love_qa_doc_source_couple (source_url(255), couple_id),
+  FULLTEXT INDEX ft_love_qa_doc_search (title, category, content) WITH PARSER ngram
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
