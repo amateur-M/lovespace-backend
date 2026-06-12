@@ -1,5 +1,6 @@
 package com.meng.lovespace.ai.dto;
 
+import com.meng.lovespace.ai.rag.retrieve.RagSimilarityFilter;
 import lombok.Builder;
 import lombok.Data;
 import org.springframework.ai.document.Document;
@@ -46,14 +47,10 @@ public class RetrievedChunk {
                 .id(doc.getId())
                 .textPreview(preview);
 
-        // 提取相似度分数（如果有）
         if (doc.getMetadata() != null) {
-            Object scoreObj = doc.getMetadata().get("distance");
-            if (scoreObj instanceof Number) {
-                // Milvus 返回的是距离，需要转换为相似度
-                double distance = ((Number) scoreObj).doubleValue();
-                // 使用 COSINE 相似度时，distance 范围是 [0, 2]，转换为相似度
-                builder.score(Math.max(0, 1 - distance / 2));
+            Double score = RagSimilarityFilter.scoreFromDocument(doc);
+            if (score != null) {
+                builder.score(score);
             }
             // 提取来源信息
             Object sourceObj = doc.getMetadata().get("title");

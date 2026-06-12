@@ -13,7 +13,10 @@ import com.meng.lovespace.ai.exception.LoveQaConversationAccessException;
 import com.meng.lovespace.ai.exception.LoveQaConversationNotFoundException;
 import com.meng.lovespace.common.web.ApiResponse;
 import com.meng.lovespace.user.dto.LoveQaIngestResponseData;
+import com.meng.lovespace.user.exception.LoveQaBusinessException;
 import com.meng.lovespace.user.security.JwtUserPrincipal;
+import com.meng.lovespace.user.service.LoveQaChatRetrievalValidator;
+import com.meng.lovespace.user.service.LoveQaChatRetrievalValidator.LoveQaChatRetrievalContext;
 import com.meng.lovespace.user.service.LoveQaConversationService;
 import com.meng.lovespace.user.service.LoveQaDocumentService;
 import com.meng.lovespace.user.service.LoveQaIngestFileValidator;
@@ -52,6 +55,7 @@ public class LoveQAController {
     private final LoveQaDocumentService loveQaDocumentService;
     private final LoveQaUrlFetchService loveQaUrlFetchService;
     private final LoveQaIngestFileValidator loveQaIngestFileValidator;
+    private final LoveQaChatRetrievalValidator chatRetrievalValidator;
     private final ObjectMapper objectMapper;
 
     public LoveQAController(
@@ -60,12 +64,14 @@ public class LoveQAController {
             LoveQaDocumentService loveQaDocumentService,
             LoveQaUrlFetchService loveQaUrlFetchService,
             LoveQaIngestFileValidator loveQaIngestFileValidator,
+            LoveQaChatRetrievalValidator chatRetrievalValidator,
             ObjectMapper objectMapper) {
         this.loveQaChatFacade = loveQaChatFacade;
         this.loveQaConversationService = loveQaConversationService;
         this.loveQaDocumentService = loveQaDocumentService;
         this.loveQaUrlFetchService = loveQaUrlFetchService;
         this.loveQaIngestFileValidator = loveQaIngestFileValidator;
+        this.chatRetrievalValidator = chatRetrievalValidator;
         this.objectMapper = objectMapper;
     }
 
@@ -132,19 +138,27 @@ public class LoveQAController {
     @PostMapping("/chat")
     public ApiResponse<LoveQaChatResponseData> chat(Authentication auth, @Valid @RequestBody LoveQaChatRequest request) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        LoveQaChatRetrievalContext retrievalCtx =
+                chatRetrievalValidator.resolve(p.userId(), request.coupleId());
         if (StringUtils.hasText(request.conversationId())) {
             loveQaConversationService.restoreRedisSessionIfMissing(
-                    p.userId(), request.coupleId(), request.conversationId().trim());
+                    p.userId(),
+                    retrievalCtx.effectiveCoupleId(),
+                    request.conversationId().trim());
         }
         LoveQaChatParams params =
                 new LoveQaChatParams(
-                        p.userId(), request.coupleId(), request.conversationId(), request.message());
+                        p.userId(),
+                        retrievalCtx.effectiveCoupleId(),
+                        request.conversationId(),
+                        request.message(),
+                        retrievalCtx.filterExpression());
         LoveQaChatResult result = loveQaChatFacade.chat(params);
         try {
             loveQaConversationService.appendChatRound(
                     result.conversationId(),
                     p.userId(),
-                    request.coupleId(),
+                    retrievalCtx.effectiveCoupleId(),
                     request.message(),
                     result.reply());
         } catch (Exception e) {
@@ -163,15 +177,31 @@ public class LoveQAController {
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chatStream(Authentication auth, @Valid @RequestBody LoveQaChatRequest request) {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
+        LoveQaChatRetrievalContext retrievalCtx;
+        try {
+            retrievalCtx = chatRetrievalValidator.resolve(p.userId(), request.coupleId());
+        } catch (LoveQaBusinessException e) {
+            SseEmitter emitter = new SseEmitter(0L);
+            sendSse(emitter, "error", Map.of("code", e.getCode(), "message", e.getMessage()));
+            emitter.complete();
+            return emitter;
+        }
         if (StringUtils.hasText(request.conversationId())) {
             loveQaConversationService.restoreRedisSessionIfMissing(
-                    p.userId(), request.coupleId(), request.conversationId().trim());
+                    p.userId(),
+                    retrievalCtx.effectiveCoupleId(),
+                    request.conversationId().trim());
         }
         LoveQaChatParams params =
                 new LoveQaChatParams(
-                        p.userId(), request.coupleId(), request.conversationId(), request.message());
+                        p.userId(),
+                        retrievalCtx.effectiveCoupleId(),
+                        request.conversationId(),
+                        request.message(),
+                        retrievalCtx.filterExpression());
         SseEmitter emitter = new SseEmitter(120_000L);
         AtomicReference<String> streamConversationId = new AtomicReference<>();
+        LoveQaChatRetrievalContext ctxForPersist = retrievalCtx;
         Thread.ofVirtual()
                 .start(
                         () -> {
@@ -206,7 +236,7 @@ public class LoveQAController {
                                                     loveQaConversationService.appendChatRound(
                                                             cid,
                                                             p.userId(),
-                                                            request.coupleId(),
+                                                            ctxForPersist.effectiveCoupleId(),
                                                             request.message(),
                                                             fullReply);
                                                 } catch (Exception ex) {

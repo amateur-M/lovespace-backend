@@ -14,6 +14,7 @@ import com.meng.lovespace.ai.rag.compress.PromptCompressor;
 import com.meng.lovespace.ai.rag.metrics.RagMetricsCollector;
 import com.meng.lovespace.ai.rag.metrics.RagPhase;
 import com.meng.lovespace.ai.rag.metrics.RagTimer;
+import com.meng.lovespace.ai.rag.retrieve.RagSimilarityFilter;
 import com.meng.lovespace.ai.service.LlmRouter;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -44,6 +45,10 @@ public class LoveQAService implements LoveQaChatFacade {
             "1. 在关键论点或建议后，必须用【1】、【2】等格式引用来源编号（对应【来源列表】中的序号）。\n" +
             "2. 若检索到的上下文不足以可靠回答，请明确回复：「根据当前知识库，我无法给出可靠答案，请提供更多细节或换个问题。」，严禁编造事实或虚构内容。\n" +
             "3. 回答要结构清晰、共情且实用，先共情再给建议。\n\n";
+
+    /** 0 命中或阈值过滤后无片段时直接返回，不调用 LLM。 */
+    static final String NO_RETRIEVAL_REPLY =
+            "根据当前知识库，我无法给出可靠答案，请提供更多细节或换个问题。";
 
     private final VectorStore vectorStore;
     private final DocumentIngestPipeline documentIngestPipeline;
@@ -117,6 +122,12 @@ public class LoveQAService implements LoveQaChatFacade {
     public LoveQaChatResult chat(LoveQaChatParams params) {
         RagTimer timer = metricsCollector.startTimer();
         PreparedChat prep = prepareChat(params, timer);
+        if (prep.noRetrievalHit()) {
+            persistRound(prep, NO_RETRIEVAL_REPLY, timer);
+            metricsCollector.record(
+                    timer, prep.conversationId(), prep.userMessage().length(), 0);
+            return new LoveQaChatResult(NO_RETRIEVAL_REPLY, prep.conversationId());
+        }
         LLMProvider llm = llmRouter.resolve();
 
         timer.phase(RagPhase.LLM_TOTAL);
@@ -135,6 +146,14 @@ public class LoveQAService implements LoveQaChatFacade {
         RagTimer timer = metricsCollector.startTimer();
         PreparedChat prep = prepareChat(params, timer);
         callback.onMeta(prep.conversationId());
+
+        if (prep.noRetrievalHit()) {
+            persistRound(prep, NO_RETRIEVAL_REPLY, timer);
+            callback.onCompleted(NO_RETRIEVAL_REPLY);
+            metricsCollector.record(
+                    timer, prep.conversationId(), prep.userMessage().length(), 0);
+            return;
+        }
 
         // 发送检索结果供前端可视化
         if (prep.retrievedChunks() != null && !prep.retrievedChunks().isEmpty()) {
@@ -200,35 +219,43 @@ public class LoveQAService implements LoveQaChatFacade {
         }
         List<LoveQAConversationTurn> priorSnapshot = new ArrayList<>(state.getTurns());
 
-        // 向量检索阶段（P1-3 增强：支持 metadata filter 实现情侣隔离）
+        // 向量检索：candidate-k 初召回 → 相似度阈值 → final topK
         timer.phase(RagPhase.RETRIEVE);
-        int topK = Math.max(1, ragAiProperties.getRetrieveTopK());
+        int finalTopK = Math.max(1, ragAiProperties.getRetrieveTopK());
+        int candidateK =
+                Math.max(finalTopK, Math.max(1, ragAiProperties.getRetrieveCandidateK()));
+        double threshold = ragAiProperties.getSimilarityThreshold();
 
-        SearchRequest.Builder builder = SearchRequest.builder()
-                .query(message)
-                .topK(topK);
+        SearchRequest.Builder builder =
+                SearchRequest.builder().query(message).topK(candidateK);
 
-        // 强制情侣隔离过滤（关键安全与相关性增强）
-        // 只有当 params 中提供 coupleId 时才添加 filter，避免跨情侣数据污染检索结果
-        // 注意：filterExpression 语法遵循 Spring AI Expression Language，Milvus 后端已支持
-        if (StringUtils.hasText(coupleId)) {
-            builder.filterExpression("coupleId == '" + coupleId + "'");
-            log.debug("RAG retrieval with coupleId filter: {}", coupleId);
+        String filterExpression = params.retrievalFilterExpression();
+        if (StringUtils.hasText(filterExpression)) {
+            builder.filterExpression(filterExpression.trim());
+            log.debug("RAG retrieval filter: {}", filterExpression);
+        } else {
+            log.warn(
+                    "RAG retrieval without filterExpression userId={} coupleId={}",
+                    userId,
+                    coupleId);
         }
 
-        // 扩展点预留（未来可在此集成 HybridRetriever：向量 + BM25 融合，或调用 reranker 模型）
-        // if (enableHybrid) { hits = hybridRetriever.retrieve(...) } else { ... }
-
         SearchRequest request = builder.build();
-        List<Document> hits = vectorStore.similaritySearch(request);
+        List<Document> candidates = vectorStore.similaritySearch(request);
+        List<Document> hits =
+                RagSimilarityFilter.filterAndLimit(candidates, threshold, finalTopK);
         timer.markRetrieveDone();
-        int chunkCount = hits.size();
+        boolean noRetrievalHit = hits.isEmpty();
+        log.debug(
+                "RAG retrieve candidateCount={} finalCount={} threshold={}",
+                candidates.size(),
+                hits.size(),
+                threshold);
 
         // Prompt 构建阶段（含压缩）
         timer.phase(RagPhase.PROMPT_BUILD);
-        
-        // 1. 压缩检索结果
-        List<Document> compressedHits = promptCompressor.compressRetrievedDocs(hits);
+
+        List<Document> compressedHits = noRetrievalHit ? List.of() : promptCompressor.compressRetrievedDocs(hits);
         String context = compressedHits.stream()
                 .map(Document::getText)
                 .collect(Collectors.joining("\n---\n"));
@@ -249,8 +276,15 @@ public class LoveQAService implements LoveQaChatFacade {
                 .filter(chunk -> chunk != null)
                 .collect(Collectors.toList());
 
-        return new PreparedChat(conversationId, state, message, systemPrompt, priorForLlm, 
-                compressedHits.size(), retrievedChunks);
+        return new PreparedChat(
+                conversationId,
+                state,
+                message,
+                systemPrompt,
+                priorForLlm,
+                compressedHits.size(),
+                retrievedChunks,
+                noRetrievalHit);
     }
 
     private void persistRound(PreparedChat prep, String reply, RagTimer timer) {
@@ -269,7 +303,8 @@ public class LoveQAService implements LoveQaChatFacade {
             String systemPrompt,
             List<ChatTurn> priorForLlm,
             int retrievedChunkCount,
-            List<RetrievedChunk> retrievedChunks) {}
+            List<RetrievedChunk> retrievedChunks,
+            boolean noRetrievalHit) {}
 
     private void verifyAccess(LoveQAConversationState state, String userId, String coupleId) {
         if (state.getUserId() == null || !state.getUserId().equals(userId)) {

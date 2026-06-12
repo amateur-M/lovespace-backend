@@ -17,6 +17,15 @@ public class RagAiProperties {
 
     private int retrieveTopK = 4;
 
+    /** Milvus 初召回条数（阈值过滤前），应 ≥ retrieveTopK。 */
+    private int retrieveCandidateK = 16;
+
+    /** 相似度阈值（0–1，COSINE distance 换算）；低于则丢弃，不进 Prompt / retrieved SSE。 */
+    private double similarityThreshold = 0.55;
+
+    /** 已绑定情侣检索时是否包含 scope=GLOBAL 公共库（false 则仅 coupleId 私有）。 */
+    private boolean allowGlobalFallback = true;
+
     /** 多轮对话在 Redis 中的 TTL（秒），默认 7 天。 */
     private long conversationTtlSeconds = 604800L;
 
