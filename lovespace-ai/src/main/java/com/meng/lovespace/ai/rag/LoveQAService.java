@@ -289,6 +289,10 @@ public class LoveQAService implements LoveQaChatFacade {
             List<RetrievedChunk> retrievedChunks,
             boolean noRetrievalHit) {}
 
+    /**
+     * 验证会话访问权限，确保用户有访问该会话的权限
+     * @param state 会话状态
+     */
     private void verifyAccess(LoveQAConversationState state, String userId, String coupleId) {
         if (state.getUserId() == null || !state.getUserId().equals(userId)) {
             throw new LoveQaConversationAccessException("无权访问该会话");

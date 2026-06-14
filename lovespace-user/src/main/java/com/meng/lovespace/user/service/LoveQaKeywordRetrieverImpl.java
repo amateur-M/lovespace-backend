@@ -42,6 +42,7 @@ public class LoveQaKeywordRetrieverImpl implements LoveQaKeywordRetriever {
         return rows.stream().map(this::toHit).toList();
     }
 
+    /** 执行 MySQL FULLTEXT 检索。 */
     private List<LoveQaKeywordSearchRow> executeSearch(
             LoveQaKeywordSearchParams params, String query, int limit) {
         try {

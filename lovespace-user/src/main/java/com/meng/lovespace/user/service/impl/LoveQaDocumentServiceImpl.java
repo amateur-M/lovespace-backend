@@ -67,18 +67,21 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
             throw new LoveQaBusinessException(BAD_REQUEST, "文档内容不能为空");
         }
 
+        // 确定是否允许导入全局知识库
         LoveQaIngestScope ingestScope = ingestValidator.resolve(userId, coupleId);
         String scope = ingestScope.scope();
         String resolvedCoupleId = ingestScope.coupleId();
         String contentHash = sha256Hex(text);
         String trimmedSourceUrl = trimToNull(sourceUrl);
 
+        // 查询是否存在重复的文档（根据文档级去重策略）
         Optional<LoveQaDocument> duplicate =
                 dedupeService.findDuplicateOrReject(contentHash, trimmedSourceUrl, resolvedCoupleId);
 
         LoveQaDocument row;
         if (duplicate.isPresent()) {
             row = duplicate.get();
+            // 根据 DocumentId 删除已有的向量
             loveQaChatFacade.deleteVectorsByDocumentId(row.getDocumentId());
             applyIngestFields(row, userId, text, title, trimmedSourceUrl, category, scope, resolvedCoupleId, contentHash);
             row.setStatus(STATUS_PENDING);
@@ -149,6 +152,7 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
     }
 
     private LoveQaIngestResponseData dispatchIngest(String documentId) {
+        // 异步入库
         if (ragAiProperties.isAsyncIngest()) {
             ingestAsyncService.processDocumentAsync(documentId);
             return new LoveQaIngestResponseData(documentId, STATUS_PENDING, 0);
@@ -256,6 +260,9 @@ public class LoveQaDocumentServiceImpl implements LoveQaDocumentService {
         return t.isEmpty() ? null : t;
     }
 
+    /**
+     * 计算输入文本的SHA-256哈希值并转为十六进制字符串
+     */
     private static String sha256Hex(String text) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");

@@ -46,6 +46,9 @@ public class LoveQaDocumentDedupeService {
                 CONFLICT, "相同来源或内容的文档已存在（documentId=" + existing.getDocumentId() + "）");
     }
 
+    /**
+     * 获取来源 URL 的文档
+     */
     private Optional<LoveQaDocument> findBySourceUrl(String sourceUrl, String coupleId) {
         if (!StringUtils.hasText(sourceUrl)) {
             return Optional.empty();
@@ -58,6 +61,9 @@ public class LoveQaDocumentDedupeService {
         return Optional.ofNullable(documentMapper.selectOne(qw));
     }
 
+    /**
+     * 获取内容 SHA-256 的文档
+     */
     private Optional<LoveQaDocument> findByContentHash(String contentHash, String coupleId) {
         if (!StringUtils.hasText(contentHash)) {
             return Optional.empty();
@@ -70,14 +76,14 @@ public class LoveQaDocumentDedupeService {
         return Optional.ofNullable(documentMapper.selectOne(qw));
     }
 
+    /**
+     * 创建查询条件；couple_id 为空时查询为 null 的文档。
+     */
     private static LambdaQueryWrapper<LoveQaDocument> baseCoupleQuery(String coupleId) {
         LambdaQueryWrapper<LoveQaDocument> qw = new LambdaQueryWrapper<>();
-        if (StringUtils.hasText(coupleId)) {
-            qw.eq(LoveQaDocument::getCoupleId, coupleId);
-        } else {
-            qw.isNull(LoveQaDocument::getCoupleId);
-        }
-        return qw;
+        // 当 coupleId 有文本内容时，拼接 eq 条件 当 coupleId 没有文本内容时，拼接 isNull 条件
+        return qw.eq(StringUtils.hasText(coupleId), LoveQaDocument::getCoupleId, coupleId)
+                .isNull(!StringUtils.hasText(coupleId), LoveQaDocument::getCoupleId);
     }
 
     private boolean isUpdateStrategy() {

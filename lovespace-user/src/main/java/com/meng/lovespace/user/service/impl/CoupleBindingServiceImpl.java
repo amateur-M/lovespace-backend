@@ -192,6 +192,9 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
         return Optional.of(b);
     }
 
+    /**
+     * 刷新关系天数
+     */
     private void refreshRelationshipDaysIfNeeded(CoupleBinding binding, LocalDate today) {
         if (binding.getStartDate() == null) {
             return;
@@ -204,6 +207,9 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
         }
     }
 
+    /**
+     * 获取 couple info
+     */
     private CoupleInfoResponse toInfoResponse(CoupleBinding binding, String viewerUserId, LocalDate today) {
         String partnerId =
                 binding.getUserId1().equals(viewerUserId) ? binding.getUserId2() : binding.getUserId1();
@@ -211,6 +217,7 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
         if (partner == null) {
             throw new CoupleBindingBusinessException(40405, "partner user not found");
         }
+        // 计算关系天数
         int days = RelationshipDaysCalculator.computeDays(binding.getStartDate(), today);
         return new CoupleInfoResponse(
                 binding.getId(),
@@ -220,6 +227,12 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
                 toUserResponse(partner));
     }
 
+    /**
+     * 转换为 user response
+     *
+     * @param u
+     * @return
+     */
     private static UserResponse toUserResponse(User u) {
         return new UserResponse(
                 u.getId(),
@@ -234,6 +247,12 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
                 u.getUpdatedAt());
     }
 
+    /**
+     * 查询当前用户是否有未分离的情侣关系。
+     *
+     * @param userId 用户 ID
+     * @return 是否有未分离的情侣关系
+     */
     private CoupleBinding findActiveOrFrozenForUser(String userId) {
         List<CoupleBinding> list =
                 lambdaQuery()

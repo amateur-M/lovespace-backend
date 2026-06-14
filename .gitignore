@@ -1,3 +1,5 @@
 logs/
 uploads/
 **/target/
+/lovespace-user/src/main/resources/application-local.yml
+/.idea/

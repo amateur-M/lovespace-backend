@@ -53,6 +53,7 @@ public class LoveQaDocumentProcessor {
 
         long startMs = System.currentTimeMillis();
         try {
+            // 文档切片
             int chunkCount =
                     loveQaChatFacade.ingestDocumentWithTracking(
                             documentId, row.getContent(), meta);

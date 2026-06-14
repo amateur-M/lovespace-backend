@@ -44,6 +44,13 @@ public final class RagReciprocalRankFusion {
         return result;
     }
 
+    /**
+     * @param docs 待融合文档列表
+     * @param rrfK RRF 常数
+     * @param scores 融合得分缓存
+     * @param chosen 融合结果缓存
+     * @param fromVector 是否来自向量检索
+     */
     private static void applyList(
             List<Document> docs,
             int rrfK,
@@ -69,6 +76,11 @@ public final class RagReciprocalRankFusion {
         }
     }
 
+    /**
+     * 融合文档 ID。
+     *
+     * <p>向量 chunk 优先，关键词 chunk 忽略。
+     */
     static String fusionKey(Document doc) {
         if (doc.getMetadata() != null) {
             Object docId = doc.getMetadata().get("documentId");
@@ -79,6 +91,9 @@ public final class RagReciprocalRankFusion {
         return "chunk:" + (doc.getId() != null ? doc.getId() : Integer.toHexString(System.identityHashCode(doc)));
     }
 
+    /**
+     * 是否来自关键词检索。
+     */
     static boolean isKeywordDoc(Document doc) {
         if (doc.getMetadata() == null) {
             return false;
