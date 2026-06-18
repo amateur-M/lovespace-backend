@@ -2,6 +2,7 @@ package com.meng.lovespace.user.security;
 
 import com.meng.lovespace.user.config.LovespaceSessionProperties;
 import com.meng.lovespace.user.util.JwtUtil;
+import com.meng.lovespace.user.user.UserRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import jakarta.servlet.FilterChain;
@@ -11,6 +12,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -99,10 +101,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new JwtUserPrincipal(
                                 jwtUtil.getUserId(claims),
                                 jwtUtil.getUsername(claims),
-                                jwtUtil.getPhone(claims));
+                                jwtUtil.getPhone(claims),
+                                jwtUtil.getRole(claims));
+
+                var authorities =
+                        UserRole.fromCode(principal.role()).isAdmin()
+                                ? List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+                                : List.of(new SimpleGrantedAuthority("ROLE_USER"));
 
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, List.of());
+                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
                 authentication.setDetails(
                         new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);

@@ -12,10 +12,12 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import com.meng.lovespace.user.user.UserRole;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -87,9 +89,16 @@ public class AuthController {
             if (sessionProperties.getDistributed().isEnabled()) {
                 JwtUserPrincipal principal =
                         new JwtUserPrincipal(
-                                resp.user().id(), resp.user().username(), resp.user().phone());
+                                resp.user().id(),
+                                resp.user().username(),
+                                resp.user().phone(),
+                                UserRole.fromCode(resp.user().role()).code());
+                var authorities =
+                        UserRole.fromCode(resp.user().role()).isAdmin()
+                                ? List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+                                : List.of(new SimpleGrantedAuthority("ROLE_USER"));
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(principal, null, List.of());
+                        new UsernamePasswordAuthenticationToken(principal, null, authorities);
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(authentication);
                 securityContextRepository.saveContext(context, request, response);

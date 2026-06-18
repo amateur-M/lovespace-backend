@@ -175,6 +175,9 @@ lovespace:
     secret: "change-me"
     issuer: "lovespace"
     expire-seconds: 7200
+  admin:
+    # 库中尚无 ADMIN 时，启动将指定手机号用户提升为管理员（须已注册）
+    bootstrap-phone: ""
   minio:
     # MinIO 配置（优先级最高）
     endpoint: ""  # 例如：http://localhost:9000

@@ -3,6 +3,7 @@ package com.meng.lovespace.user.controller;
 import com.meng.lovespace.common.web.ApiResponse;
 import com.meng.lovespace.user.config.AvatarUploadProperties;
 import com.meng.lovespace.user.dto.UpdateProfileRequest;
+import com.meng.lovespace.user.dto.UserDtoMapper;
 import com.meng.lovespace.user.dto.UserResponse;
 import com.meng.lovespace.user.entity.User;
 import com.meng.lovespace.user.oss.AvatarStorageService;
@@ -65,7 +66,7 @@ public class ProfileController {
         JwtUserPrincipal p = (JwtUserPrincipal) auth.getPrincipal();
         log.debug("profile.get userId={}", p.userId());
         return Optional.ofNullable(userService.getById(p.userId()))
-                .map(u -> ApiResponse.ok(toResponse(u)))
+                .map(u -> ApiResponse.ok(UserDtoMapper.toResponse(u)))
                 .orElseGet(() -> ApiResponse.error(40400, "user not found"));
     }
 
@@ -123,7 +124,7 @@ public class ProfileController {
         }
 
         userService.updateById(u);
-        return ApiResponse.ok(toResponse(u));
+        return ApiResponse.ok(UserDtoMapper.toResponse(u));
     }
 
     /**
@@ -182,21 +183,6 @@ public class ProfileController {
         userService.updateById(u);
         log.info("profile.avatar upload done userId={} url={}", p.userId(), url);
         return ApiResponse.ok(url);
-    }
-
-    /** 实体转对外 DTO（不含密码）。 */
-    private UserResponse toResponse(User u) {
-        return new UserResponse(
-                u.getId(),
-                u.getPhone(),
-                u.getUsername(),
-                u.getEmail(),
-                u.getAvatarUrl(),
-                u.getGender(),
-                u.getBirthday(),
-                u.getStatus(),
-                u.getCreatedAt(),
-                u.getUpdatedAt());
     }
 
     /** 从原始文件名解析小写扩展名，无点则返回空串。 */

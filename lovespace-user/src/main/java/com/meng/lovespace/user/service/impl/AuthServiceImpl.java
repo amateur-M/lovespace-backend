@@ -4,7 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.meng.lovespace.user.dto.LoginRequest;
 import com.meng.lovespace.user.dto.LoginResponse;
 import com.meng.lovespace.user.dto.RegisterRequest;
+import com.meng.lovespace.user.dto.UserDtoMapper;
 import com.meng.lovespace.user.dto.UserResponse;
+import com.meng.lovespace.user.user.UserRole;
 import com.meng.lovespace.user.entity.User;
 import com.meng.lovespace.user.security.TokenBlacklistService;
 import com.meng.lovespace.user.service.AuthService;
@@ -74,9 +76,10 @@ public class AuthServiceImpl implements AuthService {
         u.setEmail(null);
         u.setPasswordHash(passwordEncoder.encode(req.password()));
         u.setStatus(1);
+        u.setRole(UserRole.USER.code());
         userService.save(u);
         log.info("register success userId={} phone={}", u.getId(), u.getPhone());
-        return toResponse(u);
+        return UserDtoMapper.toResponse(u);
     }
 
     /** {@inheritDoc} */
@@ -98,9 +101,14 @@ public class AuthServiceImpl implements AuthService {
             throw new IllegalArgumentException("user disabled");
         }
 
-        String token = jwtUtil.generateToken(u.getId(), u.getUsername(), u.getPhone());
+        String token =
+                jwtUtil.generateToken(
+                        u.getId(),
+                        u.getUsername(),
+                        u.getPhone(),
+                        UserRole.fromCode(u.getRole()).code());
         log.info("login success userId={} phone={}", u.getId(), u.getPhone());
-        return new LoginResponse(token, toResponse(u));
+        return new LoginResponse(token, UserDtoMapper.toResponse(u));
     }
 
     /** {@inheritDoc} */
@@ -115,20 +123,5 @@ public class AuthServiceImpl implements AuthService {
         Duration ttl = Duration.ofSeconds(Math.max(0, exp - now));
         blacklist.blacklist(jti, ttl);
         log.info("logout blacklist jti={} ttlSeconds={}", jti, ttl.getSeconds());
-    }
-
-    /** 领域实体转对外 DTO。 */
-    private UserResponse toResponse(User u) {
-        return new UserResponse(
-                u.getId(),
-                u.getPhone(),
-                u.getUsername(),
-                u.getEmail(),
-                u.getAvatarUrl(),
-                u.getGender(),
-                u.getBirthday(),
-                u.getStatus(),
-                u.getCreatedAt(),
-                u.getUpdatedAt());
     }
 }

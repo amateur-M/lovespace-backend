@@ -30,6 +30,8 @@ public class JwtUtil {
     public static final String CLAIM_PHONE = "phone";
     /** Claim：旧版 JWT 曾用于邮箱，现仅用于解析兼容 */
     public static final String CLAIM_EMAIL = "email";
+    /** Claim：用户角色（0=USER 1=ADMIN） */
+    public static final String CLAIM_ROLE = "role";
 
     private final JwtProperties props;
     private final SecretKey key;
@@ -48,9 +50,10 @@ public class JwtUtil {
      * @param userId 用户 ID
      * @param username 用户名
      * @param phone 登录手机号
+     * @param role 用户角色码
      * @return 紧凑序列化的 JWT 字符串
      */
-    public String generateToken(String userId, String username, String phone) {
+    public String generateToken(String userId, String username, String phone, int role) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(props.expireSeconds());
 
@@ -61,7 +64,16 @@ public class JwtUtil {
                 .id(jti)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(exp))
-                .claims(Map.of(CLAIM_UID, userId, CLAIM_USERNAME, username, CLAIM_PHONE, phone))
+                .claims(
+                        Map.of(
+                                CLAIM_UID,
+                                userId,
+                                CLAIM_USERNAME,
+                                username,
+                                CLAIM_PHONE,
+                                phone,
+                                CLAIM_ROLE,
+                                role))
                 .signWith(key, Jwts.SIG.HS256)
                 .compact();
     }
@@ -107,6 +119,22 @@ public class JwtUtil {
     /** 从 Claims 读取 JWT ID（用于登出黑名单）。 */
     public String getJti(Claims claims) {
         return claims.getId();
+    }
+
+    /** 从 Claims 读取角色码；旧 token 无此 claim 时默认为 0（USER）。 */
+    public int getRole(Claims claims) {
+        Object raw = claims.get(CLAIM_ROLE);
+        if (raw instanceof Number n) {
+            return n.intValue();
+        }
+        if (raw instanceof String s) {
+            try {
+                return Integer.parseInt(s);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
     }
 
     /** 过期时间（Unix 秒），无则返回 0。 */

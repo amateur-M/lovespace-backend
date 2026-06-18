@@ -7,6 +7,7 @@ import com.meng.lovespace.user.dto.CoupleAcceptRequest;
 import com.meng.lovespace.user.dto.CoupleInfoResponse;
 import com.meng.lovespace.user.dto.CoupleInviteResponse;
 import com.meng.lovespace.user.dto.CouplePendingInviteResponse;
+import com.meng.lovespace.user.dto.UserDtoMapper;
 import com.meng.lovespace.user.dto.UserResponse;
 import com.meng.lovespace.user.entity.CoupleBinding;
 import com.meng.lovespace.user.entity.User;
@@ -234,17 +235,7 @@ public class CoupleBindingServiceImpl extends ServiceImpl<CoupleBindingMapper, C
      * @return
      */
     private static UserResponse toUserResponse(User u) {
-        return new UserResponse(
-                u.getId(),
-                u.getPhone(),
-                u.getUsername(),
-                u.getEmail(),
-                u.getAvatarUrl(),
-                u.getGender(),
-                u.getBirthday(),
-                u.getStatus(),
-                u.getCreatedAt(),
-                u.getUpdatedAt());
+        return UserDtoMapper.toResponse(u);
     }
 
     /**

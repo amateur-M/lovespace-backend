@@ -122,6 +122,7 @@ public class LoveQAService implements LoveQaChatFacade {
     public LoveQaChatResult chat(LoveQaChatParams params) {
         RagTimer timer = metricsCollector.startTimer();
         PreparedChat prep = prepareChat(params, timer);
+        // 若无检索结果，则直接返回
         if (prep.noRetrievalHit()) {
             persistRound(prep, NO_RETRIEVAL_REPLY, timer);
             metricsCollector.record(

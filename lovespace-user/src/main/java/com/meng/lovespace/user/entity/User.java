@@ -54,6 +54,10 @@ public class User {
     @TableField("status")
     private Integer status;
 
+    /** 角色：0 普通用户 1 管理员 */
+    @TableField("role")
+    private Integer role;
+
     /** 创建时间（插入时自动填充） */
     @TableField(value = "created_at", fill = FieldFill.INSERT)
     private LocalDateTime createdAt;

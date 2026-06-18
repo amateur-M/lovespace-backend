@@ -8,7 +8,9 @@ import java.io.Serializable;
  * @param userId 用户主键
  * @param username 用户名
  * @param phone 登录手机号
+ * @param role 角色码（0=USER 1=ADMIN）
  */
-public record JwtUserPrincipal(String userId, String username, String phone) implements Serializable {
+public record JwtUserPrincipal(String userId, String username, String phone, int role)
+        implements Serializable {
     private static final long serialVersionUID = 1L;
 }

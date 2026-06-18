@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
  * @param gender 性别
  * @param birthday 生日
  * @param status 状态
+ * @param role 角色：0 普通用户 1 管理员
  * @param createdAt 创建时间
  * @param updatedAt 更新时间
  */
@@ -26,6 +27,7 @@ public record UserResponse(
         Integer gender,
         LocalDate birthday,
         Integer status,
+        Integer role,
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {}
 

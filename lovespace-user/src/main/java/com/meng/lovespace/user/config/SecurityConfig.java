@@ -1,5 +1,6 @@
 package com.meng.lovespace.user.config;
 
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -12,6 +13,7 @@ import com.meng.lovespace.user.security.JwtAuthenticationFilter;
  * Spring Security：默认无状态 JWT；可选开启分布式 Session 时改为 IF_REQUIRED，与 Redis Session 配合。
  */
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     /**
@@ -48,6 +50,8 @@ public class SecurityConfig {
                                                 "/swagger-ui.html",
                                                 "/health/**")
                                         .permitAll()
+                                        .requestMatchers("/api/v1/admin/**")
+                                        .hasRole("ADMIN")
                                         .anyRequest()
                                         .authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
